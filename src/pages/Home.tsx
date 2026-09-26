@@ -91,6 +91,18 @@ function Home() {
 
   useEffect(() => {
     loadCouple()
+    
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        loadCouple()
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
   }, [])
 
   // --------------------------------------------------
@@ -447,7 +459,7 @@ function Home() {
       setError('メモは200文字以内で入力してください。')
       return
     }
-    
+
     const { error: updateError } = await supabase
       .from('places')
       .update({
