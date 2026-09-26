@@ -376,6 +376,11 @@ function Home() {
         return
       }
 
+      if (memo.trim().length > 200) {
+        setError('メモは200文字以内で入力してください。')
+        return
+      }
+
       if (!category) {
         setError('カテゴリを選択してください。')
         return
@@ -915,6 +920,7 @@ function Home() {
                                 <input
                                   type="text"
                                   value={editName}
+                                  maxLength={50}
                                   onChange={(e) => setEditName(e.target.value)}
                                   placeholder="場所の名前"
                                   className="mt-5 w-full rounded-2xl border border-stone-200 px-4 py-3 text-sm outline-none focus:border-stone-400"
@@ -948,6 +954,7 @@ function Home() {
                                   onChange={(e) => setEditMemo(e.target.value)}
                                   placeholder="メモ"
                                   rows={3}
+                                  maxLength={200}
                                   className="mt-3 w-full resize-none rounded-2xl border border-stone-200 px-4 py-3 text-sm outline-none focus:border-stone-400"
                                 />
 
@@ -995,7 +1002,7 @@ function Home() {
                                 </div>
 
                                 {place.memo && (
-                                  <p className="mt-4 text-sm leading-6 text-stone-500">
+                                  <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-stone-500">
                                     {place.memo}
                                   </p>
                                 )}
@@ -1227,6 +1234,7 @@ function Home() {
               onChange={(e) => setMemo(e.target.value)}
               placeholder="メモ"
               rows={3}
+              maxLength={200}
               className="mt-3 w-full resize-none rounded-2xl border border-stone-200 px-4 py-3 text-sm outline-none focus:border-stone-400"
             />
 
