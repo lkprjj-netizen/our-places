@@ -836,15 +836,15 @@ function Home() {
 
             {/* 場所一覧 */}
             <section className="mt-6">
-              <div className="sticky top-0 z-30 bg-stone-50 pb-3">
+              <div className="sticky top-0 z-30 bg-stone-50">
                 {/* 行きたい / 行った */}
                 <div className="flex border-b border-stone-200">
                   <button
                     type="button"
                     onClick={() => setPlaceTab('want')}
                     className={`flex-1 border-b-2 py-3 text-sm font-medium ${placeTab === 'want'
-                        ? 'border-stone-800 text-stone-800'
-                        : 'border-transparent text-stone-400'
+                      ? 'border-stone-800 text-stone-800'
+                      : 'border-transparent text-stone-400'
                       }`}
                   >
                     行きたい
@@ -854,63 +854,62 @@ function Home() {
                     type="button"
                     onClick={() => setPlaceTab('visited')}
                     className={`flex-1 border-b-2 py-3 text-sm font-medium ${placeTab === 'visited'
-                        ? 'border-stone-800 text-stone-800'
-                        : 'border-transparent text-stone-400'
+                      ? 'border-stone-800 text-stone-800'
+                      : 'border-transparent text-stone-400'
                       }`}
                   >
                     行った
                   </button>
                 </div>
+              </div>
 
-                {/* 検索 */}
-                <div className="relative mt-3">
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="場所を検索"
-                    className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm outline-none focus:border-stone-400"
-                  />
+              {/* ← ここに検索欄 */}
+              <div className="relative mt-4">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="場所を検索"
+                  className="w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm outline-none focus:border-stone-400"
+                />
 
-                  {searchQuery && (
-                    <button
-                      type="button"
-                      onClick={() => setSearchQuery('')}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-stone-400 hover:text-stone-600"
-                      aria-label="検索をクリア"
-                    >
-                      ×
-                    </button>
-                  )}
-                </div>
-
-                {/* カテゴリ */}
-                <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+                {searchQuery && (
                   <button
                     type="button"
-                    onClick={() => setCategoryFilter('すべて')}
-                    className={`shrink-0 rounded-full px-4 py-2 text-sm ${categoryFilter === 'すべて'
-                        ? 'bg-stone-800 text-white'
-                        : 'border border-stone-200 bg-white text-stone-500'
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-stone-400 hover:text-stone-600"
+                    aria-label="検索をクリア"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+
+              <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+                <button
+                  type="button"
+                  onClick={() => setCategoryFilter('すべて')}
+                  className={`shrink-0 rounded-full px-4 py-2 text-sm ${categoryFilter === 'すべて'
+                    ? 'bg-stone-800 text-white'
+                    : 'bg-white text-stone-500 border border-stone-200'
+                    }`}
+                >
+                  すべて
+                </button>
+
+                {categories.map((category) => (
+                  <button
+                    key={category}
+                    type="button"
+                    onClick={() => setCategoryFilter(category)}
+                    className={`shrink-0 rounded-full px-4 py-2 text-sm ${categoryFilter === category
+                      ? 'bg-stone-800 text-white'
+                      : 'bg-white text-stone-500 border border-stone-200'
                       }`}
                   >
-                    すべて
+                    {category}
                   </button>
-
-                  {categories.map((category) => (
-                    <button
-                      key={category}
-                      type="button"
-                      onClick={() => setCategoryFilter(category)}
-                      className={`shrink-0 rounded-full px-4 py-2 text-sm ${categoryFilter === category
-                          ? 'bg-stone-800 text-white'
-                          : 'border border-stone-200 bg-white text-stone-500'
-                        }`}
-                    >
-                      {category}
-                    </button>
-                  ))}
-                </div>
+                ))}
               </div>
 
               {filteredPlaces.length === 0 ? (
