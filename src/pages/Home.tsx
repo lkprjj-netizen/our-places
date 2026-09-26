@@ -433,6 +433,21 @@ function Home() {
   const updatePlace = async (place: Place) => {
     setError('')
 
+    if (!editName.trim()) {
+      setError('場所の名前を入力してください。')
+      return
+    }
+
+    if (editName.trim().length > 50) {
+      setError('場所の名前は50文字以内で入力してください。')
+      return
+    }
+
+    if (editMemo.trim().length > 200) {
+      setError('メモは200文字以内で入力してください。')
+      return
+    }
+    
     const { error: updateError } = await supabase
       .from('places')
       .update({
