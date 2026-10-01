@@ -1060,31 +1060,10 @@ function Home() {
                     {categories.map((category) => (
                       <div
                         key={category.id}
-                        draggable={editingCategoryId !== category.id}
-                        onDragStart={() => {
-                          setDraggingCategoryId(category.id)
-                        }}
-                        onDragEnd={() => {
-                          setDraggingCategoryId(null)
-                        }}
-                        onDragOver={(e) => {
-                          e.preventDefault()
-                        }}
-                        onDrop={(e) => {
-                          e.preventDefault()
-
-                          if (!draggingCategoryId) {
-                            return
-                          }
-
-                          reorderCategories(
-                            draggingCategoryId,
-                            category.id
-                          )
-                        }}
+                        data-category-id={category.id}
                         className={`rounded-2xl border border-stone-100 bg-stone-50 p-3 transition ${draggingCategoryId === category.id
-                            ? 'opacity-50'
-                            : ''
+                          ? 'opacity-50'
+                          : ''
                           }`}
                       >
                         {editingCategoryId === category.id ? (
@@ -1123,12 +1102,52 @@ function Home() {
                         ) : (
                           <div className="flex w-full items-center gap-3">
                             {/* ドラッグハンドル */}
-                            <div
-                              className="shrink-0 cursor-grab select-none text-stone-300 active:cursor-grabbing"
-                              title="ドラッグして並び替え"
-                            >
-                              ⠿
-                            </div>
+                              <div
+                                className="shrink-0 touch-none cursor-grab select-none text-stone-300 active:cursor-grabbing"
+                                title="ドラッグして並び替え"
+                                onPointerDown={(e) => {
+                                  if (editingCategoryId === category.id) {
+                                    return
+                                  }
+
+                                  e.preventDefault()
+
+                                  e.currentTarget.setPointerCapture(e.pointerId)
+
+                                  setDraggingCategoryId(category.id)
+                                }}
+                                onPointerUp={(e) => {
+                                  if (!draggingCategoryId) {
+                                    return
+                                  }
+
+                                  e.preventDefault()
+
+                                  const target = document
+                                    .elementFromPoint(e.clientX, e.clientY)
+                                    ?.closest('[data-category-id]') as HTMLElement | null
+
+                                  const targetCategoryId =
+                                    target?.dataset.categoryId
+
+                                  if (
+                                    targetCategoryId &&
+                                    targetCategoryId !== draggingCategoryId
+                                  ) {
+                                    reorderCategories(
+                                      draggingCategoryId,
+                                      targetCategoryId
+                                    )
+                                  }
+
+                                  setDraggingCategoryId(null)
+                                }}
+                                onPointerCancel={() => {
+                                  setDraggingCategoryId(null)
+                                }}
+                              >
+                                ⠿
+                              </div>
 
                             <span className="min-w-0 flex-1 break-words text-sm text-stone-700">
                               {category.name}
@@ -1380,9 +1399,9 @@ function Home() {
                                     </h3>
 
                                     <p className="mt-1 text-xs text-stone-400">
-                                        {categories.find(
-                                          (category) => category.id === place.category_id
-                                        )?.name ?? 'カテゴリなし'}
+                                      {categories.find(
+                                        (category) => category.id === place.category_id
+                                      )?.name ?? 'カテゴリなし'}
                                     </p>
                                   </div>
 
@@ -1430,242 +1449,242 @@ function Home() {
                                   )}
                                 </div>
 
-                                  {place.memo && (
-                                    <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-stone-500">
-                                      {place.memo}
-                                    </p>
-                                  )}
+                                {place.memo && (
+                                  <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-stone-500">
+                                    {place.memo}
+                                  </p>
+                                )}
 
-                                  <div className="mt-4 flex items-center justify-between">
-                                    {place.google_maps_url ? (
-                                      <a
-                                        href={place.google_maps_url}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="text-sm text-stone-500 underline"
-                                      >
-                                        Google Mapsで見る
-                                      </a>
-                                    ) : (
-                                      <span />
-                                    )}
-
-                                    <button
-                                      type="button"
-                                      onClick={() => togglePlaceStatus(place)}
-                                      className="rounded-2xl bg-stone-800 px-5 py-3 text-sm font-medium text-white hover:bg-stone-700"
+                                <div className="mt-4 flex items-center justify-between">
+                                  {place.google_maps_url ? (
+                                    <a
+                                      href={place.google_maps_url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="text-sm text-stone-500 underline"
                                     >
-                                      {place.status === 'visited' ? '行きたい' : '行った'}
-                                    </button>
-                                  </div>
-
-                                  {place.status === 'visited' && place.visited_at && (
-                                    <p className="mt-4 text-sm text-stone-400">
-                                      訪問日：
-                                      {new Date(place.visited_at).toLocaleDateString('ja-JP')}
-                                    </p>
+                                      Google Mapsで見る
+                                    </a>
+                                  ) : (
+                                    <span />
                                   )}
 
-                                  {place.status === 'visited' && (
-                                    <>
-                                      {reviews
-                                        .filter((review) => review.place_id === place.id)
-                                        .map((review) => (
-                                          <div
-                                            key={review.id}
-                                            className="mt-5 border-t border-stone-100 pt-5"
-                                          >
-                                            <p className="text-sm text-stone-400">
-                                              {review.user_id === userId ? 'あなたの評価' : '相手の評価'}
-                                            </p>
+                                  <button
+                                    type="button"
+                                    onClick={() => togglePlaceStatus(place)}
+                                    className="rounded-2xl bg-stone-800 px-5 py-3 text-sm font-medium text-white hover:bg-stone-700"
+                                  >
+                                    {place.status === 'visited' ? '行きたい' : '行った'}
+                                  </button>
+                                </div>
 
-                                            <div className="mt-1 flex gap-1">
-                                              {[1, 2, 3, 4, 5].map((star) => (
-                                                <span
-                                                  key={star}
-                                                  className={
-                                                    star <= review.rating
-                                                      ? 'text-amber-400'
-                                                      : 'text-stone-200'
-                                                  }
-                                                >
-                                                  ★
-                                                </span>
-                                              ))}
-                                            </div>
+                                {place.status === 'visited' && place.visited_at && (
+                                  <p className="mt-4 text-sm text-stone-400">
+                                    訪問日：
+                                    {new Date(place.visited_at).toLocaleDateString('ja-JP')}
+                                  </p>
+                                )}
 
-                                            {review.review && (
-                                              <p className="mt-2 text-sm leading-6 text-stone-500">
-                                                {review.review}
-                                              </p>
-                                            )}
+                                {place.status === 'visited' && (
+                                  <>
+                                    {reviews
+                                      .filter((review) => review.place_id === place.id)
+                                      .map((review) => (
+                                        <div
+                                          key={review.id}
+                                          className="mt-5 border-t border-stone-100 pt-5"
+                                        >
+                                          <p className="text-sm text-stone-400">
+                                            {review.user_id === userId ? 'あなたの評価' : '相手の評価'}
+                                          </p>
+
+                                          <div className="mt-1 flex gap-1">
+                                            {[1, 2, 3, 4, 5].map((star) => (
+                                              <span
+                                                key={star}
+                                                className={
+                                                  star <= review.rating
+                                                    ? 'text-amber-400'
+                                                    : 'text-stone-200'
+                                                }
+                                              >
+                                                ★
+                                              </span>
+                                            ))}
                                           </div>
+
+                                          {review.review && (
+                                            <p className="mt-2 text-sm leading-6 text-stone-500">
+                                              {review.review}
+                                            </p>
+                                          )}
+                                        </div>
+                                      ))}
+                                  </>
+                                )}
+
+
+                                {place.status === 'visited' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const myReview = getMyReview(place.id)
+
+                                      setReviewingPlaceId(place.id)
+                                      setRating(myReview?.rating ?? 0)
+                                      setReview(myReview?.review ?? '')
+                                    }}
+                                    className="mt-5 text-sm text-stone-500 underline"
+                                  >
+                                    {getMyReview(place.id) ? '評価・感想を編集' : '評価・感想を残す'}
+                                  </button>
+                                )}
+
+
+                                {place.status === 'visited' &&
+                                  reviewingPlaceId === place.id && (
+                                    <div className="mt-5 border-t border-stone-100 pt-5">
+                                      <p className="text-sm font-medium text-stone-700">
+                                        評価
+                                      </p>
+
+                                      <div className="mt-2 flex gap-1">
+                                        {[1, 2, 3, 4, 5].map((star) => (
+                                          <button
+                                            key={star}
+                                            type="button"
+                                            onClick={() => setRating(star)}
+                                            className={`text-2xl ${star <= rating
+                                              ? 'text-amber-400'
+                                              : 'text-stone-200'
+                                              }`}
+                                          >
+                                            ★
+                                          </button>
                                         ))}
-                                    </>
-                                  )}
-
-
-                                  {place.status === 'visited' && (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        const myReview = getMyReview(place.id)
-
-                                        setReviewingPlaceId(place.id)
-                                        setRating(myReview?.rating ?? 0)
-                                        setReview(myReview?.review ?? '')
-                                      }}
-                                      className="mt-5 text-sm text-stone-500 underline"
-                                    >
-                                      {getMyReview(place.id) ? '評価・感想を編集' : '評価・感想を残す'}
-                                    </button>
-                                  )}
-
-
-                                  {place.status === 'visited' &&
-                                    reviewingPlaceId === place.id && (
-                                      <div className="mt-5 border-t border-stone-100 pt-5">
-                                        <p className="text-sm font-medium text-stone-700">
-                                          評価
-                                        </p>
-
-                                        <div className="mt-2 flex gap-1">
-                                          {[1, 2, 3, 4, 5].map((star) => (
-                                            <button
-                                              key={star}
-                                              type="button"
-                                              onClick={() => setRating(star)}
-                                              className={`text-2xl ${star <= rating
-                                                ? 'text-amber-400'
-                                                : 'text-stone-200'
-                                                }`}
-                                            >
-                                              ★
-                                            </button>
-                                          ))}
-                                        </div>
-
-                                        <textarea
-                                          value={review}
-                                          onChange={(e) => setReview(e.target.value)}
-                                          placeholder="感想を残す"
-                                          rows={3}
-                                          className="mt-3 w-full resize-none rounded-2xl border border-stone-200 px-4 py-3 text-sm outline-none focus:border-stone-400"
-                                        />
-
-                                        <div className="mt-3 flex justify-end gap-3">
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              setReviewingPlaceId(null)
-                                              setRating(0)
-                                              setReview('')
-                                            }}
-                                            className="text-sm text-stone-400"
-                                          >
-                                            キャンセル
-                                          </button>
-
-                                          <button
-                                            type="button"
-                                            onClick={() => saveReview(place)}
-                                            className="rounded-2xl bg-stone-800 px-4 py-2 text-sm font-medium text-white"
-                                          >
-                                            保存
-                                          </button>
-                                        </div>
                                       </div>
-                                    )}
-                                </>
+
+                                      <textarea
+                                        value={review}
+                                        onChange={(e) => setReview(e.target.value)}
+                                        placeholder="感想を残す"
+                                        rows={3}
+                                        className="mt-3 w-full resize-none rounded-2xl border border-stone-200 px-4 py-3 text-sm outline-none focus:border-stone-400"
+                                      />
+
+                                      <div className="mt-3 flex justify-end gap-3">
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setReviewingPlaceId(null)
+                                            setRating(0)
+                                            setReview('')
+                                          }}
+                                          className="text-sm text-stone-400"
+                                        >
+                                          キャンセル
+                                        </button>
+
+                                        <button
+                                          type="button"
+                                          onClick={() => saveReview(place)}
+                                          className="rounded-2xl bg-stone-800 px-4 py-2 text-sm font-medium text-white"
+                                        >
+                                          保存
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+                              </>
                             )}
-                              </div>
-                        ))}
                           </div>
+                        ))}
+                      </div>
                     </div>
                   ))}
-                    </div>
-                  )}
-                </section>
+                </div>
+              )}
+            </section>
           </>
         )}
-          </div>
+      </div>
 
-        {showAddPlaceModal && (
+      {showAddPlaceModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
+          onClick={() => setShowAddPlaceModal(false)}
+        >
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
-            onClick={() => setShowAddPlaceModal(false)}
+            className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-3xl bg-white p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
           >
-            <div
-              className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-3xl bg-white p-6 shadow-xl"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-medium text-stone-800">
-                  場所を追加
-                </h2>
-              </div>
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-medium text-stone-800">
+                場所を追加
+              </h2>
+            </div>
 
-              <input
-                type="text"
-                value={placeName}
-                maxLength={50}
-                onChange={(e) => setPlaceName(e.target.value)}
-                placeholder="場所の名前"
-                className="mt-5 w-full rounded-2xl border border-stone-200 px-4 py-3 text-sm outline-none focus:border-stone-400"
-              />
+            <input
+              type="text"
+              value={placeName}
+              maxLength={50}
+              onChange={(e) => setPlaceName(e.target.value)}
+              placeholder="場所の名前"
+              className="mt-5 w-full rounded-2xl border border-stone-200 px-4 py-3 text-sm outline-none focus:border-stone-400"
+            />
 
-              <input
-                type="url"
-                value={googleMapsUrl}
-                onChange={(e) => setGoogleMapsUrl(e.target.value)}
-                placeholder="Google Maps URL"
-                className="mt-3 w-full rounded-2xl border border-stone-200 px-4 py-3 text-sm outline-none focus:border-stone-400"
-              />
+            <input
+              type="url"
+              value={googleMapsUrl}
+              onChange={(e) => setGoogleMapsUrl(e.target.value)}
+              placeholder="Google Maps URL"
+              className="mt-3 w-full rounded-2xl border border-stone-200 px-4 py-3 text-sm outline-none focus:border-stone-400"
+            />
 
             <select
               value={categoryId ?? ''}
               onChange={(e) => setCategoryId(e.target.value || null)}
               className="mt-3 w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm outline-none focus:border-stone-400"
             >
-                <option value="">カテゴリを選択</option>
+              <option value="">カテゴリを選択</option>
 
-                {categories.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name}
-                  </option>
-                ))}
-              </select>
+              {categories.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
 
-              <textarea
-                value={memo}
-                onChange={(e) => setMemo(e.target.value)}
-                placeholder="メモ"
-                rows={3}
-                maxLength={200}
-                className="mt-3 w-full resize-none rounded-2xl border border-stone-200 px-4 py-3 text-sm outline-none focus:border-stone-400"
-              />
+            <textarea
+              value={memo}
+              onChange={(e) => setMemo(e.target.value)}
+              placeholder="メモ"
+              rows={3}
+              maxLength={200}
+              className="mt-3 w-full resize-none rounded-2xl border border-stone-200 px-4 py-3 text-sm outline-none focus:border-stone-400"
+            />
 
-              <div className="mt-5 flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setShowAddPlaceModal(false)}
-                  className="rounded-2xl border border-stone-200 px-4 py-2 text-sm text-stone-500 hover:bg-stone-50"
-                >
-                  キャンセル
-                </button>
+            <div className="mt-5 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowAddPlaceModal(false)}
+                className="rounded-2xl border border-stone-200 px-4 py-2 text-sm text-stone-500 hover:bg-stone-50"
+              >
+                キャンセル
+              </button>
 
-                <button
-                  type="button"
-                  onClick={createPlace}
-                  disabled={placeLoading}
-                  className="rounded-2xl bg-stone-800 px-5 py-2 text-sm font-medium text-white hover:bg-stone-700 disabled:opacity-50"
-                >
-                  {placeLoading ? '追加中...' : '追加'}
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={createPlace}
+                disabled={placeLoading}
+                className="rounded-2xl bg-stone-800 px-5 py-2 text-sm font-medium text-white hover:bg-stone-700 disabled:opacity-50"
+              >
+                {placeLoading ? '追加中...' : '追加'}
+              </button>
             </div>
           </div>
-        )}
+        </div>
+      )}
 
     </main>
   )
