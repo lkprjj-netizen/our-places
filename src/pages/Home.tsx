@@ -85,6 +85,8 @@ function Home() {
   const [categoryLoading, setCategoryLoading] = useState(false)
 
   const [draggingCategoryId, setDraggingCategoryId] = useState<string | null>(null)
+  const [dragPointerId, setDragPointerId] = useState<number | null>(null)
+
 
   // --------------------------------------------------
   // 初期読み込み
@@ -115,6 +117,177 @@ function Home() {
       document.removeEventListener('pointerdown', handlePointerDown)
     }
   }, [])
+
+  useEffect(() => {
+    if (!draggingCategoryId || dragPointerId === null) {
+      return
+    }
+
+    const handlePointerMove = (e: PointerEvent) => {
+      if (e.pointerId !== dragPointerId) {
+        return
+      }
+
+      e.preventDefault()
+
+      const target = document.elementFromPoint(
+        e.clientX,
+        e.clientY
+      ) as HTMLElement | null
+
+      const targetCategoryElement =
+        target?.closest('[data-category-id]')
+
+      if (!targetCategoryElement) {
+        return
+      }
+
+      const targetCategoryId =
+        targetCategoryElement.getAttribute('data-category-id')
+
+      if (!targetCategoryId) {
+        return
+      }
+
+      if (targetCategoryId === draggingCategoryId) {
+        return
+      }
+
+      setCategories((currentCategories) => {
+        const currentIndex = currentCategories.findIndex(
+          (item) => item.id === draggingCategoryId
+        )
+
+        const targetIndex = currentCategories.findIndex(
+          (item) => item.id === targetCategoryId
+        )
+
+        if (
+          currentIndex === -1 ||
+          targetIndex === -1
+        ) {
+          return currentCategories
+        }
+
+        const reordered = [...currentCategories]
+
+        const [dragged] = reordered.splice(
+          currentIndex,
+          1
+        )
+
+        reordered.splice(
+          targetIndex,
+          0,
+          dragged
+        )
+
+        return reordered.map((item, index) => ({
+          ...item,
+          sort_order: index + 1,
+        }))
+      })
+    }
+
+    const handlePointerUp = async (e: PointerEvent) => {
+      if (e.pointerId !== dragPointerId) {
+        return
+      }
+
+      e.preventDefault()
+
+      const finalCategories = [...categories]
+
+      setDraggingCategoryId(null)
+      setDragPointerId(null)
+
+      setCategoryLoading(true)
+      setError('')
+
+      try {
+        const results = await Promise.all(
+          finalCategories.map((item, index) =>
+            supabase
+              .from('categories')
+              .update({
+                sort_order: index + 1,
+              })
+              .eq('id', item.id)
+              .eq('couple_id', item.couple_id)
+          )
+        )
+
+        const failed = results.find(
+          (result) => result.error
+        )
+
+        if (failed?.error) {
+          throw failed.error
+        }
+      } catch (error) {
+        console.error(
+          'Category reorder error:',
+          error
+        )
+
+        setError(
+          error instanceof Error
+            ? `カテゴリの並び替えエラー: ${error.message}`
+            : 'カテゴリの並び替えに失敗しました。'
+        )
+
+        if (couple) {
+          await loadCategories(couple.id)
+        }
+      } finally {
+        setCategoryLoading(false)
+      }
+    }
+
+
+    const handlePointerCancel = (e: PointerEvent) => {
+      if (e.pointerId !== dragPointerId) {
+        return
+      }
+
+      setDraggingCategoryId(null)
+      setDragPointerId(null)
+    }
+
+    window.addEventListener(
+      'pointermove',
+      handlePointerMove,
+      { passive: false }
+    )
+
+    window.addEventListener(
+      'pointerup',
+      handlePointerUp
+    )
+
+    window.addEventListener(
+      'pointercancel',
+      handlePointerCancel
+    )
+
+    return () => {
+      window.removeEventListener(
+        'pointermove',
+        handlePointerMove
+      )
+
+      window.removeEventListener(
+        'pointerup',
+        handlePointerUp
+      )
+
+      window.removeEventListener(
+        'pointercancel',
+        handlePointerCancel
+      )
+    }
+  }, [draggingCategoryId, dragPointerId])
+
 
 
   // --------------------------------------------------
@@ -342,74 +515,6 @@ function Home() {
     setEditingCategoryId(null)
     setEditingCategoryName('')
     setCategoryLoading(false)
-  }
-
-  const reorderCategories = async (
-    draggedCategoryId: string,
-    targetCategoryId: string
-  ) => {
-    if (draggedCategoryId === targetCategoryId) {
-      return
-    }
-
-    const currentIndex = categories.findIndex(
-      (category) => category.id === draggedCategoryId
-    )
-
-    const targetIndex = categories.findIndex(
-      (category) => category.id === targetCategoryId
-    )
-
-    if (currentIndex === -1 || targetIndex === -1) {
-      return
-    }
-
-    const reordered = [...categories]
-    const [draggedCategory] = reordered.splice(currentIndex, 1)
-
-    reordered.splice(targetIndex, 0, draggedCategory)
-
-    // 先にUIを更新
-    const updatedCategories = reordered.map((category, index) => ({
-      ...category,
-      sort_order: index + 1,
-    }))
-
-    setCategories(updatedCategories)
-
-    setCategoryLoading(true)
-    setError('')
-
-    try {
-      for (const category of updatedCategories) {
-        const { error } = await supabase
-          .from('categories')
-          .update({
-            sort_order: category.sort_order,
-          })
-          .eq('id', category.id)
-          .eq('couple_id', category.couple_id)
-
-        if (error) {
-          throw error
-        }
-      }
-    } catch (error) {
-      console.error('Category reorder error:', error)
-
-      setError(
-        error instanceof Error
-          ? `カテゴリの並び替えエラー: ${error.message}`
-          : 'カテゴリの並び替えに失敗しました。'
-      )
-
-      if (couple) {
-        await loadCategories(couple.id)
-      }
-    } finally {
-      setCategoryLoading(false)
-      setDraggingCategoryId(null)
-    }
   }
 
   // --------------------------------------------------
@@ -1061,10 +1166,12 @@ function Home() {
                       <div
                         key={category.id}
                         data-category-id={category.id}
-                        className={`rounded-2xl border border-stone-100 bg-stone-50 p-3 transition ${draggingCategoryId === category.id
-                          ? 'opacity-50'
+                        draggable={false}
+                        className={`rounded-2xl border border-stone-100 bg-stone-50 p-3 ${draggingCategoryId === category.id
+                          ? 'scale-[1.02] opacity-50 shadow-md'
                           : ''
                           }`}
+
                       >
                         {editingCategoryId === category.id ? (
                           <div className="flex w-full items-center gap-2">
@@ -1072,7 +1179,9 @@ function Home() {
                               type="text"
                               value={editingCategoryName}
                               maxLength={20}
-                              onChange={(e) => setEditingCategoryName(e.target.value)}
+                              onChange={(e) =>
+                                setEditingCategoryName(e.target.value)
+                              }
                               autoFocus
                               className="min-w-0 flex-1 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm outline-none focus:border-stone-400"
                             />
@@ -1101,58 +1210,32 @@ function Home() {
                           </div>
                         ) : (
                           <div className="flex w-full items-center gap-3">
+
                             {/* ドラッグハンドル */}
-                              <div
-                                className="shrink-0 touch-none cursor-grab select-none text-stone-300 active:cursor-grabbing"
-                                title="ドラッグして並び替え"
-                                onPointerDown={(e) => {
-                                  if (editingCategoryId === category.id) {
-                                    return
-                                  }
+                            <div
+                              className="shrink-0 touch-none cursor-grab select-none text-stone-300 active:cursor-grabbing"
+                              onPointerDown={(e) => {
+                                if (editingCategoryId === category.id) {
+                                  return
+                                }
 
-                                  e.preventDefault()
+                                e.preventDefault()
 
-                                  e.currentTarget.setPointerCapture(e.pointerId)
+                                setDraggingCategoryId(category.id)
+                                setDragPointerId(e.pointerId)
 
-                                  setDraggingCategoryId(category.id)
-                                }}
-                                onPointerUp={(e) => {
-                                  if (!draggingCategoryId) {
-                                    return
-                                  }
+                                e.currentTarget.setPointerCapture?.(e.pointerId)
+                              }}
+                            >
+                              ⠿
+                            </div>
 
-                                  e.preventDefault()
-
-                                  const target = document
-                                    .elementFromPoint(e.clientX, e.clientY)
-                                    ?.closest('[data-category-id]') as HTMLElement | null
-
-                                  const targetCategoryId =
-                                    target?.dataset.categoryId
-
-                                  if (
-                                    targetCategoryId &&
-                                    targetCategoryId !== draggingCategoryId
-                                  ) {
-                                    reorderCategories(
-                                      draggingCategoryId,
-                                      targetCategoryId
-                                    )
-                                  }
-
-                                  setDraggingCategoryId(null)
-                                }}
-                                onPointerCancel={() => {
-                                  setDraggingCategoryId(null)
-                                }}
-                              >
-                                ⠿
-                              </div>
-
+                            {/* カテゴリ名 */}
                             <span className="min-w-0 flex-1 break-words text-sm text-stone-700">
                               {category.name}
                             </span>
 
+                            {/* 編集・削除 */}
                             <div className="flex shrink-0 items-center gap-3">
                               <button
                                 type="button"
