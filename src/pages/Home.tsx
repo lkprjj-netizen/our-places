@@ -7,12 +7,19 @@ type Couple = {
   invite_code: string | null
 }
 
+type Category = {
+  id: string
+  couple_id: string
+  name: string
+  sort_order: number
+}
+
 type Place = {
   id: string
   couple_id: string
   name: string
   google_maps_url: string
-  category: string
+  category_id: string
   memo: string | null
   status: string
   added_by: string
@@ -28,20 +35,6 @@ type PlaceReview = {
   review: string | null
 }
 
-const categories = [
-  'カフェ',
-  'レストラン',
-  'スイーツ',
-  'ホテル・宿',
-  '観光・レジャー',
-  '公園・自然',
-  'ショッピング',
-  '映画・エンタメ',
-  'お出かけ',
-  'その他',
-]
-
-
 function Home() {
   const [loading, setLoading] = useState(false)
   const [joinLoading, setJoinLoading] = useState(false)
@@ -55,7 +48,6 @@ function Home() {
 
   const [placeName, setPlaceName] = useState('')
   const [googleMapsUrl, setGoogleMapsUrl] = useState('')
-  const [category, setCategory] = useState('')
   const [memo, setMemo] = useState('')
 
   const [userId, setUserId] = useState<string | null>(null)
@@ -64,7 +56,6 @@ function Home() {
 
   const [editName, setEditName] = useState('')
   const [editGoogleMapsUrl, setEditGoogleMapsUrl] = useState('')
-  const [editCategory, setEditCategory] = useState('')
   const [editMemo, setEditMemo] = useState('')
 
   const [rating, setRating] = useState(0)
@@ -85,6 +76,15 @@ function Home() {
   const [showAddPlaceModal, setShowAddPlaceModal] = useState(false)
 
   const [openPlaceMenuId, setOpenPlaceMenuId] = useState<string | null>(null)
+
+  const [categories, setCategories] = useState<Category[]>([])
+  const [categoryId, setCategoryId] = useState<string | null>(null)
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null)
+  const [editingCategoryName, setEditingCategoryName] = useState('')
+  const [newCategoryName, setNewCategoryName] = useState('')
+  const [categoryLoading, setCategoryLoading] = useState(false)
+
+  const [draggingCategoryId, setDraggingCategoryId] = useState<string | null>(null)
 
   // --------------------------------------------------
   // 初期読み込み
@@ -182,10 +182,233 @@ function Home() {
 
       setCouple(coupleData)
 
+      await loadCategories(coupleData.id)
       await loadPlaces(coupleData.id)
     } catch (err) {
       console.error(err)
       setError('データの取得に失敗しました。')
+    }
+  }
+
+  // --------------------------------------------------
+  // Category取得
+  // --------------------------------------------------
+
+  const loadCategories = async (coupleId: string) => {
+    const { data, error } = await supabase
+      .from('categories')
+      .select('id, couple_id, name, sort_order')
+      .eq('couple_id', coupleId)
+      .order('sort_order', { ascending: true })
+
+    if (error) {
+      console.error('Categories lookup error:', error)
+      setError(`カテゴリの取得エラー: ${error.message}`)
+      return
+    }
+
+    setCategories(data ?? [])
+  }
+
+  const createCategory = async () => {
+    if (!couple) {
+      return
+    }
+
+    const name = newCategoryName.trim()
+
+    if (!name) {
+      setError('カテゴリ名を入力してください。')
+      return
+    }
+
+    if (name.length > 20) {
+      setError('カテゴリ名は20文字以内で入力してください。')
+      return
+    }
+
+    if (categories.length >= 20) {
+      setError('カテゴリは20件までです。')
+      return
+    }
+
+    setCategoryLoading(true)
+    setError('')
+
+    const { error } = await supabase.rpc('create_category', {
+      p_couple_id: couple.id,
+      p_name: name,
+    })
+
+    if (error) {
+      console.error('Category creation error:', error)
+      setError(`カテゴリの追加エラー: ${error.message}`)
+      setCategoryLoading(false)
+      return
+    }
+
+    setNewCategoryName('')
+
+    await loadCategories(couple.id)
+
+    setCategoryLoading(false)
+  }
+
+  const deleteCategory = async (category: Category) => {
+    if (!couple) {
+      return
+    }
+
+    if (categories.length <= 1) {
+      setError('カテゴリは1件以上必要です。')
+      return
+    }
+
+    const placeCount = places.filter(
+      (place) => place.category_id === category.id
+    ).length
+
+    if (placeCount > 0) {
+      setError(
+        `「${category.name}」には${placeCount}件の場所が登録されているため削除できません。`
+      )
+      return
+    }
+
+    const confirmed = window.confirm(
+      `「${category.name}」を削除しますか？`
+    )
+
+    if (!confirmed) {
+      return
+    }
+
+    setCategoryLoading(true)
+    setError('')
+
+    const { error: deleteError } = await supabase.rpc(
+      'delete_category',
+      {
+        p_category_id: category.id,
+      }
+    )
+
+    if (deleteError) {
+      console.error('Category deletion error:', deleteError)
+      setError(`カテゴリの削除エラー: ${deleteError.message}`)
+      setCategoryLoading(false)
+      return
+    }
+
+    if (categoryFilter === category.id) {
+      setCategoryFilter('すべて')
+    }
+
+    await loadCategories(couple.id)
+
+    setCategoryLoading(false)
+  }
+
+  const updateCategory = async (categoryId: string) => {
+    const name = editingCategoryName.trim()
+
+    if (!name) {
+      setError('カテゴリ名を入力してください。')
+      return
+    }
+
+    setCategoryLoading(true)
+    setError('')
+
+    const { error } = await supabase
+      .from('categories')
+      .update({
+        name,
+      })
+      .eq('id', categoryId)
+      .eq('couple_id', couple?.id)
+
+    if (error) {
+      console.error('Category update error:', error)
+      setError(`カテゴリの更新エラー: ${error.message}`)
+      setCategoryLoading(false)
+      return
+    }
+
+    if (couple) {
+      await loadCategories(couple.id)
+    }
+
+    setEditingCategoryId(null)
+    setEditingCategoryName('')
+    setCategoryLoading(false)
+  }
+
+  const reorderCategories = async (
+    draggedCategoryId: string,
+    targetCategoryId: string
+  ) => {
+    if (draggedCategoryId === targetCategoryId) {
+      return
+    }
+
+    const currentIndex = categories.findIndex(
+      (category) => category.id === draggedCategoryId
+    )
+
+    const targetIndex = categories.findIndex(
+      (category) => category.id === targetCategoryId
+    )
+
+    if (currentIndex === -1 || targetIndex === -1) {
+      return
+    }
+
+    const reordered = [...categories]
+    const [draggedCategory] = reordered.splice(currentIndex, 1)
+
+    reordered.splice(targetIndex, 0, draggedCategory)
+
+    // 先にUIを更新
+    const updatedCategories = reordered.map((category, index) => ({
+      ...category,
+      sort_order: index + 1,
+    }))
+
+    setCategories(updatedCategories)
+
+    setCategoryLoading(true)
+    setError('')
+
+    try {
+      for (const category of updatedCategories) {
+        const { error } = await supabase
+          .from('categories')
+          .update({
+            sort_order: category.sort_order,
+          })
+          .eq('id', category.id)
+          .eq('couple_id', category.couple_id)
+
+        if (error) {
+          throw error
+        }
+      }
+    } catch (error) {
+      console.error('Category reorder error:', error)
+
+      setError(
+        error instanceof Error
+          ? `カテゴリの並び替えエラー: ${error.message}`
+          : 'カテゴリの並び替えに失敗しました。'
+      )
+
+      if (couple) {
+        await loadCategories(couple.id)
+      }
+    } finally {
+      setCategoryLoading(false)
+      setDraggingCategoryId(null)
     }
   }
 
@@ -257,16 +480,8 @@ function Home() {
         return
       }
 
-      const coupleId = crypto.randomUUID()
-      const newInviteCode = crypto.randomUUID().slice(0, 8)
-
-      const { error: coupleError } = await supabase
-        .from('couples')
-        .insert({
-          id: coupleId,
-          name: 'ふたりの場所',
-          invite_code: newInviteCode,
-        })
+      const { data: coupleData, error: coupleError } = await supabase
+        .rpc('create_couple_with_categories')
 
       if (coupleError) {
         console.error('Couple creation error:', coupleError)
@@ -274,26 +489,24 @@ function Home() {
         return
       }
 
-      const { error: memberError } = await supabase
-        .from('couple_members')
-        .insert({
-          couple_id: coupleId,
-          user_id: user.id,
-        })
-
-      if (memberError) {
-        console.error('Member creation error:', memberError)
-        setError(`メンバー登録エラー: ${memberError.message}`)
+      if (!coupleData) {
+        setError('共有スペースを作成できませんでした。')
         return
       }
 
-      alert(`共有スペースを作成しました！\n招待コード：${newInviteCode}`)
+      alert(
+        `共有スペースを作成しました！\n招待コード：${coupleData.invite_code}`
+      )
 
       await loadCouple()
+    } catch (err) {
+      console.error(err)
+      setError('共有スペースの作成に失敗しました。')
     } finally {
       setLoading(false)
     }
   }
+
 
   // --------------------------------------------------
   // 招待コードで参加
@@ -405,7 +618,7 @@ function Home() {
         return
       }
 
-      if (!category) {
+      if (!categoryId) {
         setError('カテゴリを選択してください。')
         return
       }
@@ -417,20 +630,26 @@ function Home() {
           couple_id: couple.id,
           name: placeName.trim(),
           google_maps_url: googleMapsUrl.trim(),
-          category: category,
+          category_id: categoryId,
           memo: memo.trim() || null,
           status: 'want',
           added_by: user.id,
         })
 
       if (placeError) {
+        console.error('Place creation error:', {
+          code: placeError.code,
+          message: placeError.message,
+          details: placeError.details,
+          hint: placeError.hint,
+        })
         setError(`場所の追加エラー: ${placeError.message}`)
         return
       }
 
       setPlaceName('')
       setGoogleMapsUrl('')
-      setCategory('')
+      setCategoryId(null)
       setMemo('')
 
       await loadPlaces(couple.id)
@@ -449,7 +668,7 @@ function Home() {
     setEditingPlaceId(place.id)
     setEditName(place.name)
     setEditGoogleMapsUrl(place.google_maps_url)
-    setEditCategory(place.category)
+    setEditingCategoryId(place.category_id)
     setEditMemo(place.memo ?? '')
     setError('')
   }
@@ -477,7 +696,7 @@ function Home() {
       .update({
         name: editName.trim(),
         google_maps_url: editGoogleMapsUrl.trim(),
-        category: editCategory.trim() || 'その他',
+        category_id: editingCategoryId,
         memo: editMemo.trim() || null,
         updated_at: new Date().toISOString(),
       })
@@ -611,7 +830,7 @@ function Home() {
   const filteredPlaces = places.filter(
     (place) =>
       place.status === placeTab &&
-      (categoryFilter === 'すべて' || place.category === categoryFilter) &&
+      (categoryFilter === 'すべて' || place.category_id === categoryFilter) &&
       place.name.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
@@ -619,7 +838,7 @@ function Home() {
     .map((category) => ({
       category,
       places: filteredPlaces.filter(
-        (place) => place.category === category
+        (place) => place.category_id === category.id
       ),
     }))
     .filter((group) => group.places.length > 0)
@@ -825,6 +1044,144 @@ function Home() {
                     </p>
                   </div>
                 )}
+
+                <div className="mt-6 border-t border-stone-100 pt-6">
+                  <div>
+                    <p className="text-sm text-stone-500">
+                      カテゴリ
+                    </p>
+
+                    <p className="mt-1 text-xs text-stone-400">
+                      ふたりで使うカテゴリを追加・削除できます。
+                    </p>
+                  </div>
+
+                  <div className="mt-4 space-y-2">
+                    {categories.map((category) => (
+                      <div
+                        key={category.id}
+                        draggable={editingCategoryId !== category.id}
+                        onDragStart={() => {
+                          setDraggingCategoryId(category.id)
+                        }}
+                        onDragEnd={() => {
+                          setDraggingCategoryId(null)
+                        }}
+                        onDragOver={(e) => {
+                          e.preventDefault()
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault()
+
+                          if (!draggingCategoryId) {
+                            return
+                          }
+
+                          reorderCategories(
+                            draggingCategoryId,
+                            category.id
+                          )
+                        }}
+                        className={`rounded-2xl border border-stone-100 bg-stone-50 p-3 transition ${draggingCategoryId === category.id
+                            ? 'opacity-50'
+                            : ''
+                          }`}
+                      >
+                        {editingCategoryId === category.id ? (
+                          <div className="flex w-full items-center gap-2">
+                            <input
+                              type="text"
+                              value={editingCategoryName}
+                              maxLength={20}
+                              onChange={(e) => setEditingCategoryName(e.target.value)}
+                              autoFocus
+                              className="min-w-0 flex-1 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm outline-none focus:border-stone-400"
+                            />
+
+                            <button
+                              type="button"
+                              onClick={() => updateCategory(category.id)}
+                              disabled={categoryLoading}
+                              className="shrink-0 rounded-xl bg-stone-800 px-3 py-2 text-sm text-white disabled:opacity-50"
+                            >
+                              {categoryLoading ? '保存中...' : '保存'}
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingCategoryId(null)
+                                setEditingCategoryName('')
+                                setError('')
+                              }}
+                              disabled={categoryLoading}
+                              className="shrink-0 rounded-xl px-3 py-2 text-sm text-stone-500"
+                            >
+                              キャンセル
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex w-full items-center gap-3">
+                            {/* ドラッグハンドル */}
+                            <div
+                              className="shrink-0 cursor-grab select-none text-stone-300 active:cursor-grabbing"
+                              title="ドラッグして並び替え"
+                            >
+                              ⠿
+                            </div>
+
+                            <span className="min-w-0 flex-1 break-words text-sm text-stone-700">
+                              {category.name}
+                            </span>
+
+                            <div className="flex shrink-0 items-center gap-3">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingCategoryId(category.id)
+                                  setEditingCategoryName(category.name)
+                                  setError('')
+                                }}
+                                disabled={categoryLoading}
+                                className="text-sm text-stone-500 hover:text-stone-800 disabled:opacity-50"
+                              >
+                                編集
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => deleteCategory(category)}
+                                disabled={categoryLoading}
+                                className="text-sm text-red-400 hover:text-red-600 disabled:opacity-50"
+                              >
+                                削除
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-4 flex gap-2">
+                    <input
+                      type="text"
+                      value={newCategoryName}
+                      maxLength={20}
+                      onChange={(e) => setNewCategoryName(e.target.value)}
+                      placeholder="新しいカテゴリ"
+                      className="min-w-0 flex-1 rounded-2xl border border-stone-200 px-4 py-3 text-sm outline-none focus:border-stone-400"
+                    />
+                    <button
+                      type="button"
+                      disabled={categoryLoading || categories.length >= 20}
+                      onClick={createCategory}
+                      className="shrink-0 rounded-2xl bg-stone-800 px-4 py-3 text-sm font-medium text-white disabled:opacity-50"
+                    >
+                      {categories.length >= 20 ? '上限20件' : '追加'}
+                    </button>
+                  </div>
+                </div>
               </section>
             )}
 
@@ -905,15 +1262,15 @@ function Home() {
 
                 {categories.map((category) => (
                   <button
-                    key={category}
+                    key={category.id}
                     type="button"
-                    onClick={() => setCategoryFilter(category)}
-                    className={`shrink-0 rounded-full px-4 py-2 text-sm ${categoryFilter === category
+                    onClick={() => setCategoryFilter(category.id)}
+                    className={`shrink-0 rounded-full px-4 py-2 text-sm ${categoryFilter === category.id
                       ? 'bg-stone-800 text-white'
                       : 'bg-white text-stone-500 border border-stone-200'
                       }`}
                   >
-                    {category}
+                    {category.name}
                   </button>
                 ))}
               </div>
@@ -933,9 +1290,9 @@ function Home() {
               ) : (
                 <div className="mt-4 space-y-6 pb-28">
                   {groupedPlaces.map((group) => (
-                    <div key={group.category}>
+                    <div key={group.category.id}>
                       <h3 className="mb-3 px-1 text-sm font-medium text-stone-500">
-                        {group.category}
+                        {group.category.name}
                       </h3>
 
                       <div className="space-y-4">
@@ -970,15 +1327,15 @@ function Home() {
                                 />
 
                                 <select
-                                  value={editCategory}
-                                  onChange={(e) => setEditCategory(e.target.value)}
+                                  value={editingCategoryId ?? ''}
+                                  onChange={(e) => setEditingCategoryId(e.target.value || null)}
                                   className="mt-3 w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm outline-none focus:border-stone-400"
                                 >
                                   <option value="">カテゴリを選択</option>
 
                                   {categories.map((item) => (
-                                    <option key={item} value={item}>
-                                      {item}
+                                    <option key={item.id} value={item.id}>
+                                      {item.name}
                                     </option>
                                   ))}
                                 </select>
@@ -1023,7 +1380,9 @@ function Home() {
                                     </h3>
 
                                     <p className="mt-1 text-xs text-stone-400">
-                                      {place.category}
+                                        {categories.find(
+                                          (category) => category.id === place.category_id
+                                        )?.name ?? 'カテゴリなし'}
                                     </p>
                                   </div>
 
@@ -1263,16 +1622,16 @@ function Home() {
                 className="mt-3 w-full rounded-2xl border border-stone-200 px-4 py-3 text-sm outline-none focus:border-stone-400"
               />
 
-              <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                className="mt-3 w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm outline-none focus:border-stone-400"
-              >
+            <select
+              value={categoryId ?? ''}
+              onChange={(e) => setCategoryId(e.target.value || null)}
+              className="mt-3 w-full rounded-2xl border border-stone-200 bg-white px-4 py-3 text-sm outline-none focus:border-stone-400"
+            >
                 <option value="">カテゴリを選択</option>
 
                 {categories.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
+                  <option key={item.id} value={item.id}>
+                    {item.name}
                   </option>
                 ))}
               </select>
