@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
 type Couple = {
@@ -86,7 +86,8 @@ function Home() {
 
   const [draggingCategoryId, setDraggingCategoryId] = useState<string | null>(null)
   const [dragPointerId, setDragPointerId] = useState<number | null>(null)
-
+  // ドラッグ中の最新カテゴリ順を保持
+  const categoriesRef = useRef<Category[]>([])
 
   // --------------------------------------------------
   // 初期読み込み
@@ -136,14 +137,14 @@ function Home() {
       ) as HTMLElement | null
 
       const targetCategoryElement =
-        target?.closest('[data-category-id]')
+        target?.closest<HTMLElement>('[data-category-id]')
 
       if (!targetCategoryElement) {
         return
       }
 
       const targetCategoryId =
-        targetCategoryElement.getAttribute('data-category-id')
+        targetCategoryElement.dataset.categoryId
 
       if (!targetCategoryId) {
         return
@@ -153,40 +154,45 @@ function Home() {
         return
       }
 
-      setCategories((currentCategories) => {
-        const currentIndex = currentCategories.findIndex(
-          (item) => item.id === draggingCategoryId
-        )
+      const currentCategories = categoriesRef.current
 
-        const targetIndex = currentCategories.findIndex(
-          (item) => item.id === targetCategoryId
-        )
+      const currentIndex = currentCategories.findIndex(
+        (item) => item.id === draggingCategoryId
+      )
 
-        if (
-          currentIndex === -1 ||
-          targetIndex === -1
-        ) {
-          return currentCategories
-        }
+      const targetIndex = currentCategories.findIndex(
+        (item) => item.id === targetCategoryId
+      )
 
-        const reordered = [...currentCategories]
+      if (
+        currentIndex === -1 ||
+        targetIndex === -1
+      ) {
+        return
+      }
 
-        const [dragged] = reordered.splice(
-          currentIndex,
-          1
-        )
+      const reordered = [...currentCategories]
 
-        reordered.splice(
-          targetIndex,
-          0,
-          dragged
-        )
+      const [dragged] = reordered.splice(
+        currentIndex,
+        1
+      )
 
-        return reordered.map((item, index) => ({
+      reordered.splice(
+        targetIndex,
+        0,
+        dragged
+      )
+
+      const nextCategories = reordered.map(
+        (item, index) => ({
           ...item,
           sort_order: index + 1,
-        }))
-      })
+        })
+      )
+
+      categoriesRef.current = nextCategories
+      setCategories(nextCategories)
     }
 
     const handlePointerUp = async (e: PointerEvent) => {
@@ -196,24 +202,30 @@ function Home() {
 
       e.preventDefault()
 
-      const finalCategories = [...categories]
+      const finalCategories = [
+        ...categoriesRef.current,
+      ]
 
       setDraggingCategoryId(null)
       setDragPointerId(null)
+
+      if (finalCategories.length === 0) {
+        return
+      }
 
       setCategoryLoading(true)
       setError('')
 
       try {
         const results = await Promise.all(
-          finalCategories.map((item, index) =>
+          finalCategories.map((category, index) =>
             supabase
               .from('categories')
               .update({
                 sort_order: index + 1,
               })
-              .eq('id', item.id)
-              .eq('couple_id', item.couple_id)
+              .eq('id', category.id)
+              .eq('couple_id', category.couple_id)
           )
         )
 
@@ -224,6 +236,16 @@ function Home() {
         if (failed?.error) {
           throw failed.error
         }
+
+        // 保存成功後にrefも正規化
+        const savedCategories =
+          finalCategories.map((category, index) => ({
+            ...category,
+            sort_order: index + 1,
+          }))
+
+        categoriesRef.current = savedCategories
+        setCategories(savedCategories)
       } catch (error) {
         console.error(
           'Category reorder error:',
@@ -244,14 +266,18 @@ function Home() {
       }
     }
 
-
     const handlePointerCancel = (e: PointerEvent) => {
       if (e.pointerId !== dragPointerId) {
         return
       }
 
+      // DBには保存せず、サーバー上の順番に戻す
       setDraggingCategoryId(null)
       setDragPointerId(null)
+
+      if (couple) {
+        loadCategories(couple.id)
+      }
     }
 
     window.addEventListener(
@@ -286,8 +312,11 @@ function Home() {
         handlePointerCancel
       )
     }
-  }, [draggingCategoryId, dragPointerId])
-
+  }, [
+    draggingCategoryId,
+    dragPointerId,
+    couple,
+  ])
 
 
   // --------------------------------------------------
@@ -380,8 +409,12 @@ function Home() {
       return
     }
 
-    setCategories(data ?? [])
+    const nextCategories = data ?? []
+
+    categoriesRef.current = nextCategories
+    setCategories(nextCategories)
   }
+
 
   const createCategory = async () => {
     if (!couple) {
@@ -1167,12 +1200,12 @@ function Home() {
                         key={category.id}
                         data-category-id={category.id}
                         draggable={false}
-                        className={`rounded-2xl border border-stone-100 bg-stone-50 p-3 ${draggingCategoryId === category.id
+                        className={`rounded-2xl border border-stone-100 bg-stone-50 p-3 transition ${draggingCategoryId === category.id
                           ? 'scale-[1.02] opacity-50 shadow-md'
                           : ''
                           }`}
-
                       >
+
                         {editingCategoryId === category.id ? (
                           <div className="flex w-full items-center gap-2">
                             <input
@@ -1213,21 +1246,32 @@ function Home() {
 
                             {/* ドラッグハンドル */}
                             <div
-                              className="shrink-0 touch-none cursor-grab select-none text-stone-300 active:cursor-grabbing"
+                              className="shrink-0 touch-none select-none cursor-grab active:cursor-grabbing"
+                              style={{ touchAction: 'none' }}
                               onPointerDown={(e) => {
-                                if (editingCategoryId === category.id) {
+                                if (
+                                  editingCategoryId === category.id ||
+                                  categoryLoading
+                                ) {
                                   return
                                 }
 
                                 e.preventDefault()
 
+                                // ドラッグ開始時点の状態をrefに保存
+                                categoriesRef.current = [...categories]
+
                                 setDraggingCategoryId(category.id)
                                 setDragPointerId(e.pointerId)
 
-                                e.currentTarget.setPointerCapture?.(e.pointerId)
+                                e.currentTarget.setPointerCapture?.(
+                                  e.pointerId
+                                )
                               }}
                             >
-                              ⠿
+                              <span className="block px-1 py-1text-xl leading-none text-stone-300">
+                                ⠿
+                              </span>
                             </div>
 
                             {/* カテゴリ名 */}
