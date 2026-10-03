@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import CategorySettings from '../components/categories/CategorySetting'
+
 
 import type {
   Couple,
@@ -1132,151 +1134,27 @@ function Home() {
                   </div>
                 )}
 
-                <div className="mt-6 border-t border-stone-100 pt-6">
-                  <div>
-                    <p className="text-sm text-stone-500">
-                      カテゴリ
-                    </p>
+                <CategorySettings
+                  categories={categories}
+                  editingCategoryId={editingCategoryId}
+                  setEditingCategoryId={setEditingCategoryId}
+                  editingCategoryName={editingCategoryName}
+                  setEditingCategoryName={setEditingCategoryName}
+                  newCategoryName={newCategoryName}
+                  setNewCategoryName={setNewCategoryName}
+                  categoryLoading={categoryLoading}
+                  draggingCategoryId={draggingCategoryId}
+                  onCreateCategory={createCategory}
+                  onUpdateCategory={updateCategory}
+                  onDeleteCategory={deleteCategory}
+                  onDragStart={(categoryId, pointerId) => {
+                    categoriesRef.current = [...categories]
 
-                    <p className="mt-1 text-xs text-stone-400">
-                      ふたりで使うカテゴリを追加・削除できます。
-                    </p>
-                  </div>
+                    setDraggingCategoryId(categoryId)
+                    setDragPointerId(pointerId)
+                  }}
+                />
 
-                  <div className="mt-4 space-y-2">
-                    {categories.map((category) => (
-                      <div
-                        key={category.id}
-                        data-category-id={category.id}
-                        draggable={false}
-                        className={`rounded-2xl border border-stone-100 bg-stone-50 p-3 transition ${draggingCategoryId === category.id
-                          ? 'scale-[1.02] opacity-50 shadow-md'
-                          : ''
-                          }`}
-                      >
-
-                        {editingCategoryId === category.id ? (
-                          <div className="flex w-full items-center gap-2">
-                            <input
-                              type="text"
-                              value={editingCategoryName}
-                              maxLength={20}
-                              onChange={(e) =>
-                                setEditingCategoryName(e.target.value)
-                              }
-                              autoFocus
-                              className="min-w-0 flex-1 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm outline-none focus:border-stone-400"
-                            />
-
-                            <button
-                              type="button"
-                              onClick={() => updateCategory(category.id)}
-                              disabled={categoryLoading}
-                              className="shrink-0 rounded-xl bg-stone-800 px-3 py-2 text-sm text-white disabled:opacity-50"
-                            >
-                              {categoryLoading ? '保存中...' : '保存'}
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setEditingCategoryId(null)
-                                setEditingCategoryName('')
-                                setError('')
-                              }}
-                              disabled={categoryLoading}
-                              className="shrink-0 rounded-xl px-3 py-2 text-sm text-stone-500"
-                            >
-                              キャンセル
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="flex w-full items-center gap-3">
-
-                            {/* ドラッグハンドル */}
-                            <div
-                              className="shrink-0 touch-none select-none cursor-grab active:cursor-grabbing"
-                              style={{ touchAction: 'none' }}
-                              onPointerDown={(e) => {
-                                if (
-                                  editingCategoryId === category.id ||
-                                  categoryLoading
-                                ) {
-                                  return
-                                }
-
-                                e.preventDefault()
-
-                                // ドラッグ開始時点の状態をrefに保存
-                                categoriesRef.current = [...categories]
-
-                                setDraggingCategoryId(category.id)
-                                setDragPointerId(e.pointerId)
-
-                                e.currentTarget.setPointerCapture?.(
-                                  e.pointerId
-                                )
-                              }}
-                            >
-                              <span className="block px-1 py-1text-xl leading-none text-stone-300">
-                                ⠿
-                              </span>
-                            </div>
-
-                            {/* カテゴリ名 */}
-                            <span className="min-w-0 flex-1 break-words text-sm text-stone-700">
-                              {category.name}
-                            </span>
-
-                            {/* 編集・削除 */}
-                            <div className="flex shrink-0 items-center gap-3">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setEditingCategoryId(category.id)
-                                  setEditingCategoryName(category.name)
-                                  setError('')
-                                }}
-                                disabled={categoryLoading}
-                                className="text-sm text-stone-500 hover:text-stone-800 disabled:opacity-50"
-                              >
-                                編集
-                              </button>
-
-                              <button
-                                type="button"
-                                onClick={() => deleteCategory(category)}
-                                disabled={categoryLoading}
-                                className="text-sm text-red-400 hover:text-red-600 disabled:opacity-50"
-                              >
-                                削除
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="mt-4 flex gap-2">
-                    <input
-                      type="text"
-                      value={newCategoryName}
-                      maxLength={20}
-                      onChange={(e) => setNewCategoryName(e.target.value)}
-                      placeholder="新しいカテゴリ"
-                      className="min-w-0 flex-1 rounded-2xl border border-stone-200 px-4 py-3 text-sm outline-none focus:border-stone-400"
-                    />
-                    <button
-                      type="button"
-                      disabled={categoryLoading || categories.length >= 20}
-                      onClick={createCategory}
-                      className="shrink-0 rounded-2xl bg-stone-800 px-4 py-3 text-sm font-medium text-white disabled:opacity-50"
-                    >
-                      {categories.length >= 20 ? '上限20件' : '追加'}
-                    </button>
-                  </div>
-                </div>
               </section>
             )}
 
@@ -1369,7 +1247,7 @@ function Home() {
                   </button>
                 ))}
               </div>
-              
+
               <PlaceList
                 filteredPlaces={filteredPlaces}
                 categories={categories}
