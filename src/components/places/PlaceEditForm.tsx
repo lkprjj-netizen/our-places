@@ -13,12 +13,13 @@ type PlaceEditFormProps = {
   editGoogleMapsUrl: string
   setEditGoogleMapsUrl: (value: string) => void
 
-  editingCategoryId: string | null
-  setEditingCategoryId: (value: string | null) => void
+  editingPlaceCategoryId: string | null
+  setEditingPlaceCategoryId: (value: string | null) => void
 
   editMemo: string
   setEditMemo: (value: string) => void
 }
+
 
 function PlaceEditForm({
   place,
@@ -33,12 +34,13 @@ function PlaceEditForm({
   editGoogleMapsUrl,
   setEditGoogleMapsUrl,
 
-  editingCategoryId,
-  setEditingCategoryId,
+  editingPlaceCategoryId,
+  setEditingPlaceCategoryId,
 
   editMemo,
   setEditMemo,
 }: PlaceEditFormProps) {
+
   return (
     <div>
       <h3 className="text-lg font-medium text-stone-800">
@@ -67,9 +69,9 @@ function PlaceEditForm({
       />
 
       <select
-        value={editingCategoryId ?? ''}
+        value={editingPlaceCategoryId ?? ''}
         onChange={(e) =>
-          setEditingCategoryId(
+          setEditingPlaceCategoryId(
             e.target.value || null
           )
         }

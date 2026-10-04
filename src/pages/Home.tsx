@@ -9,6 +9,7 @@ import type {
   Category,
   Place,
   PlaceReview,
+  PlaceVisit,
 } from '../types'
 
 import PlaceList from '../components/places/PlaceList'
@@ -37,6 +38,7 @@ function Home() {
   const [editMemo, setEditMemo] = useState('')
 
   const [reviews, setReviews] = useState<PlaceReview[]>([])
+  const [placeVisits, setPlaceVisits] = useState<PlaceVisit[]>([])
 
   const [placeTab, setPlaceTab] = useState<'want' | 'visited'>('want')
   const [searchQuery, setSearchQuery] = useState('')
@@ -53,6 +55,8 @@ function Home() {
   const [categories, setCategories] = useState<Category[]>([])
   const [categoryId, setCategoryId] = useState<string | null>(null)
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null)
+  const [editingPlaceCategoryId, setEditingPlaceCategoryId] =
+    useState<string | null>(null)
   const [editingCategoryName, setEditingCategoryName] = useState('')
   const [newCategoryName, setNewCategoryName] = useState('')
   const [categoryLoading, setCategoryLoading] = useState(false)
@@ -63,6 +67,11 @@ function Home() {
   const categoriesRef = useRef<Category[]>([])
 
   const [showCategorySettings, setShowCategorySettings] = useState(false)
+
+  const [showVisitDateModal, setShowVisitDateModal] = useState(false)
+  const [visitDatePlace, setVisitDatePlace] = useState<Place | null>(null)
+  const [visitDate, setVisitDate] = useState('')
+  const [visitDateLoading, setVisitDateLoading] = useState(false)
 
 
   // --------------------------------------------------
@@ -541,8 +550,30 @@ function Home() {
     }
 
     setPlaces(data ?? [])
+
+    const placeIds = (data ?? []).map((place) => place.id)
+
+    if (placeIds.length > 0) {
+      const { data: visits, error: visitsError } = await supabase
+        .from('place_visits')
+        .select('id, place_id, visited_at, created_at')
+        .in('place_id', placeIds)
+        .order('visited_at', { ascending: false })
+
+      if (visitsError) {
+        console.error('Place visits lookup error:', visitsError)
+        setError(`訪問履歴の取得エラー: ${visitsError.message}`)
+        return
+      }
+
+      setPlaceVisits(visits ?? [])
+    } else {
+      setPlaceVisits([])
+    }
+
     await loadReviews()
   }
+
 
   const loadReviews = async () => {
     const { data, error: reviewsError } = await supabase
@@ -747,6 +778,7 @@ function Home() {
           added_by: user.id,
         })
 
+
       if (placeError) {
         console.error('Place creation error:', {
           code: placeError.code,
@@ -793,12 +825,17 @@ function Home() {
       return
     }
 
+    if (!editingPlaceCategoryId) {
+      setError('カテゴリを選択してください。')
+      return
+    }
+
     const { error: updateError } = await supabase
       .from('places')
       .update({
         name: editName.trim(),
         google_maps_url: editGoogleMapsUrl.trim(),
-        category_id: editingCategoryId,
+        category_id: editingPlaceCategoryId,
         memo: editMemo.trim() || null,
         updated_at: new Date().toISOString(),
       })
@@ -899,25 +936,570 @@ function Home() {
   const togglePlaceStatus = async (place: Place) => {
     setError('')
 
-    const isVisited = place.status === 'visited'
+    // 「行った」→「行きたい」は即時変更せず確認
+    if (place.status === 'visited') {
+      const confirmed = window.confirm(
+        `「${place.name}」を「行きたい」に戻しますか？`
+      )
 
-    const { error: updateError } = await supabase
-      .from('places')
-      .update({
-        status: isVisited ? 'want' : 'visited',
-        visited_at: isVisited ? null : new Date().toISOString(),
-      })
-      .eq('id', place.id)
-      .eq('couple_id', place.couple_id)
+      if (!confirmed) {
+        return
+      }
 
-    if (updateError) {
-      console.error('Place status update error:', updateError)
-      setError(`ステータス変更エラー: ${updateError.message}`)
+      const {
+        data: updatedPlace,
+        error: updateError,
+      } = await supabase
+        .from('places')
+        .update({
+          status: 'want',
+          visited_at: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', place.id)
+        .eq('couple_id', place.couple_id)
+        .select('id, status, visited_at')
+        .maybeSingle()
+
+      if (updateError) {
+        console.error(
+          'Place status update error:',
+          updateError
+        )
+
+        setError(
+          `ステータス変更エラー: ${updateError.message}`
+        )
+
+        return
+      }
+
+      if (!updatedPlace) {
+        setError(
+          '場所のステータスを変更できませんでした。RLSなどの権限設定を確認してください。'
+        )
+
+        return
+      }
+
+      await loadPlaces(place.couple_id)
+
       return
     }
 
-    await loadPlaces(place.couple_id)
+    // 「行きたい」→「行った」は訪問日を入力してから登録
+    setVisitDatePlace(place)
+
+    const today = new Date()
+    const localDate = new Date(
+      today.getTime() - today.getTimezoneOffset() * 60000
+    )
+      .toISOString()
+      .slice(0, 10)
+
+    setVisitDate(localDate)
+    setShowVisitDateModal(true)
   }
+
+  const saveVisitDate = async () => {
+    if (!visitDatePlace || !visitDate) {
+      return
+    }
+
+    setVisitDateLoading(true)
+    setError('')
+
+    try {
+      const {
+        data: existingVisits,
+        error: existingError,
+      } = await supabase
+        .from('place_visits')
+        .select('id, visited_at')
+        .eq('place_id', visitDatePlace.id)
+
+      if (existingError) {
+        throw new Error(
+          `訪問履歴の確認エラー: ${existingError.message}`
+        )
+      }
+
+      const duplicated = (existingVisits ?? []).some(
+        (visit) => {
+          const existingDate = new Date(
+            visit.visited_at
+          )
+
+          const localDate = new Date(
+            existingDate.getTime() -
+            existingDate.getTimezoneOffset() * 60000
+          )
+            .toISOString()
+            .slice(0, 10)
+
+          return localDate === visitDate
+        }
+      )
+
+      if (duplicated) {
+        setError(
+          'この日はすでに訪問履歴があります。'
+        )
+        return
+      }
+
+      const visitedAt = new Date(
+        `${visitDate}T12:00:00`
+      ).toISOString()
+
+      const {
+        data: insertedVisit,
+        error: visitError,
+      } = await supabase
+        .from('place_visits')
+        .insert({
+          place_id: visitDatePlace.id,
+          visited_at: visitedAt,
+        })
+        .select('id, place_id, visited_at, created_at')
+        .single()
+
+      if (visitError) {
+        throw new Error(
+          `訪問履歴の保存エラー: ${visitError.message}`
+        )
+      }
+
+      if (!insertedVisit) {
+        throw new Error(
+          '訪問履歴を登録できませんでした。'
+        )
+      }
+
+      /*
+       * 「行きたい」→「行った」の操作なので、
+       * ここでは明示的に visited にする。
+       */
+      const { data: updatedPlace, error: placeError } =
+        await supabase
+          .from('places')
+          .update({
+            status: 'visited',
+            visited_at: visitedAt,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', visitDatePlace.id)
+          .eq('couple_id', visitDatePlace.couple_id)
+          .select('id, status, visited_at')
+          .maybeSingle()
+
+      if (placeError) {
+        throw placeError
+      }
+
+      if (!updatedPlace) {
+        throw new Error(
+          '場所のステータスを更新できませんでした。RLSなどの権限設定を確認してください。'
+        )
+      }
+
+      await loadPlaces(visitDatePlace.couple_id)
+
+      setShowVisitDateModal(false)
+      setVisitDatePlace(null)
+      setVisitDate('')
+    } catch (error) {
+      console.error(
+        'Save visit date error:',
+        error
+      )
+
+      setError(
+        error instanceof Error
+          ? error.message
+          : '訪問日の登録に失敗しました。'
+      )
+    } finally {
+      setVisitDateLoading(false)
+    }
+  }
+
+
+  const updateVisitDate = async (
+    visit: PlaceVisit,
+    date: string
+  ) => {
+    if (!date) {
+      setError('訪問日を入力してください。')
+      return
+    }
+
+    setError('')
+
+    try {
+      // 同じ場所に同じ日付の訪問履歴が
+      // すでに存在しないかチェック
+      const {
+        data: existingVisits,
+        error: existingError,
+      } = await supabase
+        .from('place_visits')
+        .select('id, visited_at')
+        .eq('place_id', visit.place_id)
+        .neq('id', visit.id)
+
+      if (existingError) {
+        console.error(
+          'Existing visits lookup error:',
+          existingError
+        )
+
+        setError(
+          `訪問履歴の確認エラー: ${existingError.message}`
+        )
+
+        return
+      }
+
+      const duplicated = (existingVisits ?? []).some(
+        (item) => {
+          const existingDate = new Date(
+            item.visited_at
+          )
+
+          const localDate = new Date(
+            existingDate.getTime() -
+            existingDate.getTimezoneOffset() * 60000
+          )
+            .toISOString()
+            .slice(0, 10)
+
+          return localDate === date
+        }
+      )
+
+      if (duplicated) {
+        setError(
+          'この日はすでに訪問履歴があります。'
+        )
+        return
+      }
+
+      const visitedAt = new Date(
+        `${date}T12:00:00`
+      ).toISOString()
+
+      const {
+        data: updatedVisit,
+        error: updateError,
+      } = await supabase
+        .from('place_visits')
+        .update({
+          visited_at: visitedAt,
+        })
+        .eq('id', visit.id)
+        .select('id, place_id, visited_at, created_at')
+        .maybeSingle()
+
+      if (updateError) {
+        console.error(
+          'Visit date update error:',
+          updateError
+        )
+
+        setError(
+          `訪問日の更新エラー: ${updateError.message}`
+        )
+
+        return
+      }
+
+      if (!updatedVisit) {
+        setError(
+          '訪問履歴を更新できませんでした。RLSなどの権限設定を確認してください。'
+        )
+
+        return
+      }
+
+      /*
+       * ここでは places.status を変更しない。
+       *
+       * 「行きたい」状態で過去の訪問日を修正した場合も、
+       * 「行きたい」のままにする。
+       *
+       * 「行った」状態の場合も、
+       * 「行った」のままにする。
+       */
+      await updatePlaceLatestVisitDate(
+        visit.place_id
+      )
+
+      if (couple) {
+        await loadPlaces(couple.id)
+      }
+    } catch (error) {
+      console.error(
+        'Update visit date error:',
+        error
+      )
+
+      setError(
+        error instanceof Error
+          ? `訪問日の更新エラー: ${error.message}`
+          : '訪問日の更新に失敗しました。'
+      )
+    }
+  }
+
+
+  const deleteVisit = async (
+    visit: PlaceVisit
+  ) => {
+    const confirmed = window.confirm(
+      'この訪問履歴を削除しますか？'
+    )
+
+    if (!confirmed) {
+      return
+    }
+
+    setError('')
+
+    try {
+      /*
+       * 削除前の places.status を取得する。
+       *
+       * 「行きたい」状態なら、
+       * 訪問履歴を削除しても「行きたい」のまま。
+       *
+       * 「行った」状態なら、
+       * 削除後に訪問履歴が残っているか確認する。
+       */
+      const {
+        data: currentPlace,
+        error: currentPlaceError,
+      } = await supabase
+        .from('places')
+        .select('id, status')
+        .eq('id', visit.place_id)
+        .maybeSingle()
+
+      if (currentPlaceError) {
+        console.error(
+          'Current place lookup error:',
+          currentPlaceError
+        )
+
+        setError(
+          `場所情報の取得エラー: ${currentPlaceError.message}`
+        )
+
+        return
+      }
+
+      if (!currentPlace) {
+        setError(
+          '場所情報を取得できませんでした。'
+        )
+
+        return
+      }
+
+      const {
+        data: deletedVisit,
+        error: deleteError,
+      } = await supabase
+        .from('place_visits')
+        .delete()
+        .eq('id', visit.id)
+        .select('id')
+        .maybeSingle()
+
+      if (deleteError) {
+        console.error(
+          'Visit deletion error:',
+          deleteError
+        )
+
+        setError(
+          `訪問履歴の削除エラー: ${deleteError.message}`
+        )
+
+        return
+      }
+
+      if (!deletedVisit) {
+        setError(
+          '訪問履歴を削除できませんでした。RLSなどの権限設定を確認してください。'
+        )
+
+        return
+      }
+
+      /*
+       * 「行きたい」の場合は、
+       * 履歴を削除しても status は変更しない。
+       */
+      if (currentPlace.status === 'want') {
+        await updatePlaceLatestVisitDate(
+          visit.place_id
+        )
+      } else {
+        /*
+         * 「行った」の場合は、
+         * 残っている訪問履歴を確認する。
+         *
+         * 残っていれば「行った」のまま。
+         * 0件なら「行きたい」に戻す。
+         */
+        await updatePlaceLatestVisit(
+          visit.place_id
+        )
+      }
+
+      if (couple) {
+        await loadPlaces(couple.id)
+      }
+    } catch (error) {
+      console.error(
+        'Delete visit error:',
+        error
+      )
+
+      setError(
+        error instanceof Error
+          ? `訪問履歴の削除エラー: ${error.message}`
+          : '訪問履歴の削除に失敗しました。'
+      )
+    }
+  }
+
+
+
+
+  const updatePlaceLatestVisit = async (
+    placeId: string
+  ) => {
+    const {
+      data: visits,
+      error,
+    } = await supabase
+      .from('place_visits')
+      .select('id, place_id, visited_at, created_at')
+      .eq('place_id', placeId)
+      .order('visited_at', {
+        ascending: false,
+      })
+
+    if (error) {
+      throw error
+    }
+
+    const latestVisit = visits?.[0]
+
+    if (!latestVisit) {
+      const {
+        data,
+        error: placeError,
+      } = await supabase
+        .from('places')
+        .update({
+          status: 'want',
+          visited_at: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', placeId)
+        .select('id, status, visited_at')
+        .maybeSingle()
+
+      if (placeError) {
+        throw placeError
+      }
+
+      if (!data) {
+        throw new Error(
+          '場所のステータスを更新できませんでした。RLSなどの権限設定を確認してください。'
+        )
+      }
+
+      return
+    }
+
+    const {
+      data,
+      error: placeError,
+    } = await supabase
+      .from('places')
+      .update({
+        status: 'visited',
+        visited_at: latestVisit.visited_at,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', placeId)
+      .select('id, status, visited_at')
+      .maybeSingle()
+
+    if (placeError) {
+      throw placeError
+    }
+
+    if (!data) {
+      throw new Error(
+        '場所のステータスを更新できませんでした。RLSなどの権限設定を確認してください。'
+      )
+    }
+  }
+
+  const updatePlaceLatestVisitDate = async (
+    placeId: string
+  ) => {
+    const {
+      data: visits,
+      error,
+    } = await supabase
+      .from('place_visits')
+      .select('id, place_id, visited_at, created_at')
+      .eq('place_id', placeId)
+      .order('visited_at', {
+        ascending: false,
+      })
+
+    if (error) {
+      throw error
+    }
+
+    const latestVisit = visits?.[0]
+
+    /*
+     * 訪問履歴の日付情報だけを更新する。
+     *
+     * status は絶対に変更しない。
+     */
+    const {
+      data,
+      error: placeError,
+    } = await supabase
+      .from('places')
+      .update({
+        visited_at: latestVisit?.visited_at ?? null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', placeId)
+      .select('id, status, visited_at')
+      .maybeSingle()
+
+    if (placeError) {
+      throw placeError
+    }
+
+    if (!data) {
+      throw new Error(
+        '場所の訪問日を更新できませんでした。RLSなどの権限設定を確認してください。'
+      )
+    }
+  }
+
 
   const filteredPlaces = places.filter(
     (place) =>
@@ -1217,14 +1799,17 @@ function Home() {
                 onDelete={deletePlace}
                 onToggleStatus={togglePlaceStatus}
                 onSaveReview={saveReview}
+                onUpdateVisitDate={updateVisitDate}
+                onDeleteVisit={deleteVisit}
                 editName={editName}
                 setEditName={setEditName}
                 editGoogleMapsUrl={editGoogleMapsUrl}
                 setEditGoogleMapsUrl={setEditGoogleMapsUrl}
-                editingCategoryId={editingCategoryId}
-                setEditingCategoryId={setEditingCategoryId}
+                editingPlaceCategoryId={editingPlaceCategoryId}
+                setEditingPlaceCategoryId={setEditingPlaceCategoryId}
                 editMemo={editMemo}
                 setEditMemo={setEditMemo}
+                placeVisits={placeVisits}
               />
 
 
@@ -1398,33 +1983,33 @@ function Home() {
                       </button>
                     </div>
                   ) : (
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex min-w-0 items-center gap-3">
-                          <span
-                            className="shrink-0 cursor-grab select-none touch-none text-stone-300 active:cursor-grabbing"
-                            aria-label="カテゴリを並び替え"
-                            onPointerDown={(e) => {
-                              if (editingCategoryId === category.id) {
-                                return
-                              }
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <span
+                          className="shrink-0 cursor-grab select-none touch-none text-stone-300 active:cursor-grabbing"
+                          aria-label="カテゴリを並び替え"
+                          onPointerDown={(e) => {
+                            if (editingCategoryId === category.id) {
+                              return
+                            }
 
-                              e.preventDefault()
+                            e.preventDefault()
 
-                              setDraggingCategoryId(category.id)
-                              setDragPointerId(e.pointerId)
+                            setDraggingCategoryId(category.id)
+                            setDragPointerId(e.pointerId)
 
-                              categoriesRef.current = [...categories]
-                            }}
-                          >
-                            ⋮⋮
-                          </span>
+                            categoriesRef.current = [...categories]
+                          }}
+                        >
+                          ⋮⋮
+                        </span>
 
-                          <span className="min-w-0 truncate text-sm text-stone-700">
-                            {category.name}
-                          </span>
-                        </div>
+                        <span className="min-w-0 truncate text-sm text-stone-700">
+                          {category.name}
+                        </span>
+                      </div>
 
-                        <div className="flex shrink-0 gap-2">
+                      <div className="flex shrink-0 gap-2">
 
                         <button
                           type="button"
@@ -1452,6 +2037,63 @@ function Home() {
                   )}
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showVisitDateModal && visitDatePlace && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
+          onClick={() => {
+            if (visitDateLoading) return
+
+            setShowVisitDateModal(false)
+            setVisitDatePlace(null)
+            setVisitDate('')
+          }}
+        >
+          <div
+            className="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-lg font-medium text-stone-800">
+              訪問日を登録
+            </h2>
+
+            <p className="mt-2 text-sm text-stone-500">
+              「{visitDatePlace.name}」に行った日を選択してください。
+            </p>
+
+            <input
+              type="date"
+              value={visitDate}
+              onChange={(e) => setVisitDate(e.target.value)}
+              className="mt-5 w-full rounded-2xl border border-stone-200 px-4 py-3 text-sm outline-none focus:border-stone-400"
+            />
+
+            <div className="mt-5 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowVisitDateModal(false)
+                  setVisitDatePlace(null)
+                  setVisitDate('')
+                }}
+                disabled={visitDateLoading}
+                className="rounded-2xl border border-stone-200 px-4 py-2 text-sm text-stone-500 hover:bg-stone-50 disabled:opacity-50"
+              >
+                キャンセル
+              </button>
+
+              <button
+                type="button"
+                onClick={saveVisitDate}
+                disabled={visitDateLoading || !visitDate}
+                className="rounded-2xl bg-stone-800 px-5 py-2 text-sm font-medium text-white hover:bg-stone-700 disabled:opacity-50"
+              >
+                {visitDateLoading ? '保存中...' : '登録'}
+              </button>
             </div>
           </div>
         </div>

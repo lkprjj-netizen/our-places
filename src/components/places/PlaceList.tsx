@@ -4,6 +4,7 @@ import type {
   Category,
   Place,
   PlaceReview,
+  PlaceVisit,
 } from '../../types'
 
 type PlaceListProps = {
@@ -21,24 +22,38 @@ type PlaceListProps = {
   onUpdate: (place: Place) => void
   onDelete: (place: Place) => void
   onToggleStatus: (place: Place) => void
+
   onSaveReview: (
     place: Place,
     rating: number,
     review: string
   ) => Promise<void>
 
+  onUpdateVisitDate: (
+    visit: PlaceVisit,
+    date: string
+  ) => Promise<void>
+
+  onDeleteVisit: (
+    visit: PlaceVisit
+  ) => Promise<void>
+
+  // 以下はそのまま
   editName: string
   setEditName: (value: string) => void
 
   editGoogleMapsUrl: string
   setEditGoogleMapsUrl: (value: string) => void
 
-  editingCategoryId: string | null
-  setEditingCategoryId: (value: string | null) => void
+  editingPlaceCategoryId: string | null
+  setEditingPlaceCategoryId: (value: string | null) => void
 
   editMemo: string
   setEditMemo: (value: string) => void
+
+  placeVisits: PlaceVisit[]
 }
+
 
 function PlaceList({
   filteredPlaces,
@@ -57,17 +72,22 @@ function PlaceList({
   onToggleStatus,
   onSaveReview,
 
+  onUpdateVisitDate,
+  onDeleteVisit,
+
   editName,
   setEditName,
 
   editGoogleMapsUrl,
   setEditGoogleMapsUrl,
 
-  editingCategoryId,
-  setEditingCategoryId,
+  editingPlaceCategoryId,
+  setEditingPlaceCategoryId,
 
   editMemo,
   setEditMemo,
+
+  placeVisits,
 }: PlaceListProps) {
   const groupedPlaces = categories
     .map((category) => ({
@@ -101,29 +121,44 @@ function PlaceList({
               </h3>
 
               <div className="space-y-4">
-                {group.places.map((place) => (
-                  <PlaceCard
-                    key={place.id}
-                    place={place}
-                    categories={categories}
-                    userId={userId}
-                    reviews={reviews}
-                    editingPlaceId={editingPlaceId}
-                    setEditingPlaceId={setEditingPlaceId}
-                    onUpdate={onUpdate}
-                    onDelete={onDelete}
-                    onToggleStatus={onToggleStatus}
-                    onSaveReview={onSaveReview}
-                    editName={editName}
-                    setEditName={setEditName}
-                    editGoogleMapsUrl={editGoogleMapsUrl}
-                    setEditGoogleMapsUrl={setEditGoogleMapsUrl}
-                    editingCategoryId={editingCategoryId}
-                    setEditingCategoryId={setEditingCategoryId}
-                    editMemo={editMemo}
-                    setEditMemo={setEditMemo}
-                  />
-                ))}
+                {group.places.map((place) => {
+                  const sortedPlaceVisits = placeVisits
+                    .filter((visit) => visit.place_id === place.id)
+                    .sort(
+                      (a, b) =>
+                        new Date(a.visited_at).getTime() -
+                        new Date(b.visited_at).getTime()
+                    )
+
+                  return (
+                    <PlaceCard
+                      key={place.id}
+                      place={place}
+                      categories={categories}
+                      userId={userId}
+                      reviews={reviews}
+                      placeVisits={sortedPlaceVisits}
+                      editingPlaceId={editingPlaceId}
+                      setEditingPlaceId={setEditingPlaceId}
+                      onUpdate={onUpdate}
+                      onDelete={onDelete}
+                      onToggleStatus={onToggleStatus}
+                      onSaveReview={onSaveReview}
+                      onUpdateVisitDate={onUpdateVisitDate}
+                      onDeleteVisit={onDeleteVisit}
+                      editName={editName}
+                      setEditName={setEditName}
+                      editGoogleMapsUrl={editGoogleMapsUrl}
+                      setEditGoogleMapsUrl={setEditGoogleMapsUrl}
+                      editingPlaceCategoryId={editingPlaceCategoryId}
+                      setEditingPlaceCategoryId={setEditingPlaceCategoryId}
+                      editMemo={editMemo}
+                      setEditMemo={setEditMemo}
+                    />
+
+                  )
+                })}
+
               </div>
             </div>
           ))}

@@ -16,6 +16,7 @@ export type Place = {
   couple_id: string
   name: string
   google_maps_url: string
+  sns_url: string | null
   category_id: string
   memo: string | null
   status: string
@@ -41,4 +42,11 @@ export type PlaceListProps = {
   onDelete: (place: Place) => void
   onToggleStatus: (place: Place) => void
   onSaveReview: (place: Place) => void
+}
+
+export type PlaceVisit = {
+  id: string
+  place_id: string
+  visited_at: string
+  created_at: string
 }

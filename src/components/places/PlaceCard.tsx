@@ -6,6 +6,7 @@ import type {
   Category,
   Place,
   PlaceReview,
+  PlaceVisit,
 } from '../../types'
 
 type PlaceCardProps = {
@@ -13,6 +14,7 @@ type PlaceCardProps = {
   categories: Category[]
   userId: string | null
   reviews: PlaceReview[]
+  placeVisits: PlaceVisit[]
 
   editingPlaceId: string | null
   setEditingPlaceId: (id: string | null) => void
@@ -26,14 +28,24 @@ type PlaceCardProps = {
     review: string
   ) => Promise<void>
 
+  onUpdateVisitDate: (
+    visit: PlaceVisit,
+    date: string
+  ) => Promise<void>
+
+  onDeleteVisit: (
+    visit: PlaceVisit
+  ) => Promise<void>
+
   editName: string
   setEditName: (value: string) => void
 
   editGoogleMapsUrl: string
   setEditGoogleMapsUrl: (value: string) => void
 
-  editingCategoryId: string | null
-  setEditingCategoryId: (value: string | null) => void
+  editingPlaceCategoryId: string | null
+  setEditingPlaceCategoryId: (value: string | null) => void
+
 
   editMemo: string
   setEditMemo: (value: string) => void
@@ -44,6 +56,7 @@ function PlaceCard({
   categories,
   userId,
   reviews,
+  placeVisits,
 
   editingPlaceId,
   setEditingPlaceId,
@@ -51,7 +64,11 @@ function PlaceCard({
   onUpdate,
   onDelete,
   onToggleStatus,
+
+
   onSaveReview,
+  onUpdateVisitDate,
+  onDeleteVisit,
 
   editName,
   setEditName,
@@ -59,21 +76,82 @@ function PlaceCard({
   editGoogleMapsUrl,
   setEditGoogleMapsUrl,
 
-  editingCategoryId,
-  setEditingCategoryId,
+  editingPlaceCategoryId,
+  setEditingPlaceCategoryId,
+
 
   editMemo,
   setEditMemo,
 }: PlaceCardProps) {
-  const [openPlaceMenuId, setOpenPlaceMenuId] = useState<string | null>(null)
+  const [openPlaceMenuId, setOpenPlaceMenuId] =
+    useState<string | null>(null)
+
+  const [editingVisitId, setEditingVisitId] =
+    useState<string | null>(null)
+
+  const [isEditingVisits, setIsEditingVisits] =
+    useState(false)
+
+
+  const [editingVisitDate, setEditingVisitDate] =
+    useState('')
 
   const startEditing = (place: Place) => {
     setEditingPlaceId(place.id)
     setEditName(place.name)
     setEditGoogleMapsUrl(place.google_maps_url)
-    setEditingCategoryId(place.category_id)
+    setEditingPlaceCategoryId(place.category_id)
     setEditMemo(place.memo ?? '')
     setOpenPlaceMenuId(null)
+  }
+
+
+
+  const formatVisitDate = (date: string) => {
+    return new Date(date).toLocaleDateString(
+      'ja-JP'
+    )
+  }
+
+  const getLocalDateValue = (date: string) => {
+    const parsed = new Date(date)
+
+    const localDate = new Date(
+      parsed.getTime() -
+      parsed.getTimezoneOffset() * 60000
+    )
+
+    return localDate.toISOString().slice(0, 10)
+  }
+
+  const startEditingVisit = (
+    visit: PlaceVisit
+  ) => {
+    setEditingVisitId(visit.id)
+    setEditingVisitDate(
+      getLocalDateValue(visit.visited_at)
+    )
+  }
+
+  const cancelEditingVisit = () => {
+    setEditingVisitId(null)
+    setEditingVisitDate('')
+  }
+
+  const saveEditingVisit = async (
+    visit: PlaceVisit
+  ) => {
+    if (!editingVisitDate) {
+      return
+    }
+
+    await onUpdateVisitDate(
+      visit,
+      editingVisitDate
+    )
+
+    setEditingVisitId(null)
+    setEditingVisitDate('')
   }
 
   return (
@@ -82,19 +160,28 @@ function PlaceCard({
         <PlaceEditForm
           place={place}
           categories={categories}
-          onCancel={() => setEditingPlaceId(null)}
+          onCancel={() =>
+            setEditingPlaceId(null)
+          }
           onUpdate={onUpdate}
           editName={editName}
           setEditName={setEditName}
-          editGoogleMapsUrl={editGoogleMapsUrl}
-          setEditGoogleMapsUrl={setEditGoogleMapsUrl}
-          editingCategoryId={editingCategoryId}
-          setEditingCategoryId={setEditingCategoryId}
+          editGoogleMapsUrl={
+            editGoogleMapsUrl
+          }
+          setEditGoogleMapsUrl={
+            setEditGoogleMapsUrl
+          }
+          editingPlaceCategoryId={
+            editingPlaceCategoryId
+          }
+          setEditingPlaceCategoryId={
+            setEditingPlaceCategoryId
+          }
           editMemo={editMemo}
           setEditMemo={setEditMemo}
         />
       ) : (
-        /* 通常表示 */
         <>
           <div className="flex items-start gap-4">
             <div className="min-w-0 flex-1">
@@ -192,15 +279,132 @@ function PlaceCard({
             </button>
           </div>
 
-          {place.status === 'visited' &&
-            place.visited_at && (
-              <p className="mt-4 text-sm text-stone-400">
-                訪問日：
-                {new Date(
-                  place.visited_at
-                ).toLocaleDateString('ja-JP')}
-              </p>
-            )}
+          {/* 訪問履歴 */}
+          {placeVisits.length > 0 && (
+            <div className="mt-5 border-t border-stone-100 pt-4">
+
+              {/* 見出し */}
+              <div className="mb-3 flex items-center justify-between">
+                <p className="text-xs font-medium text-stone-400">
+                  訪問履歴
+                </p>
+
+                {!isEditingVisits ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsEditingVisits(true)
+                      setEditingVisitId(null)
+                      setEditingVisitDate('')
+                    }}
+                    className="text-xs text-stone-400 underline"
+                  >
+                    編集
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsEditingVisits(false)
+                      setEditingVisitId(null)
+                      setEditingVisitDate('')
+                    }}
+                    className="text-xs text-stone-400 underline"
+                  >
+                    戻す
+                  </button>
+                )}
+              </div>
+
+              {/* 訪問履歴一覧 */}
+              <div className="space-y-2">
+                {placeVisits.map((visit) => (
+                  <div
+                    key={visit.id}
+                    className="flex items-center justify-between gap-3 rounded-2xl bg-stone-50 px-3 py-2"
+                  >
+                    {isEditingVisits && editingVisitId === visit.id ? (
+                      <>
+                        {/* 日付編集 */}
+                        <input
+                          type="date"
+                          value={editingVisitDate}
+                          onChange={(e) =>
+                            setEditingVisitDate(e.target.value)
+                          }
+                          className="min-w-0 flex-1 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm outline-none focus:border-stone-400"
+                        />
+
+                        {/* 編集中の操作 */}
+                        <div className="flex shrink-0 gap-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              saveEditingVisit(visit)
+                            }
+                            className="text-xs text-stone-600 underline"
+                          >
+                            保存
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              onDeleteVisit(visit)
+                            }
+                            className="text-xs text-red-400 underline"
+                          >
+                            削除
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={cancelEditingVisit}
+                            className="text-xs text-stone-400 underline"
+                          >
+                            戻す
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        {/* 通常時・編集モード時の日付 */}
+                        <span className="text-sm text-stone-500">
+                          {formatVisitDate(visit.visited_at)}
+                        </span>
+
+                        {/* 編集モード時だけ個別操作を表示 */}
+                        {isEditingVisits && (
+                          <div className="flex shrink-0 gap-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                startEditingVisit(visit)
+                              }
+                              className="text-xs text-stone-400 underline"
+                            >
+                              編集
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                onDeleteVisit(visit)
+                              }
+                              className="text-xs text-red-400 underline"
+                            >
+                              削除
+                            </button>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
 
           {place.status === 'visited' && (
             <ReviewSection
