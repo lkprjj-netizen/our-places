@@ -949,17 +949,13 @@ function Home() {
       const {
         data: updatedPlace,
         error: updateError,
-      } = await supabase
-        .from('places')
-        .update({
-          status: 'want',
-          visited_at: null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', place.id)
-        .eq('couple_id', place.couple_id)
-        .select('id, status, visited_at')
-        .maybeSingle()
+      } = await supabase.rpc(
+        'reset_place_status',
+        {
+          p_place_id: place.id,
+        }
+      )
+
 
       if (updateError) {
         console.error(
@@ -1010,96 +1006,21 @@ function Home() {
     setError('')
 
     try {
-      const {
-        data: existingVisits,
-        error: existingError,
-      } = await supabase
-        .from('place_visits')
-        .select('id, visited_at')
-        .eq('place_id', visitDatePlace.id)
-
-      if (existingError) {
-        throw new Error(
-          `訪問履歴の確認エラー: ${existingError.message}`
-        )
-      }
-
-      const duplicated = (existingVisits ?? []).some(
-        (visit) => {
-          const existingDate = new Date(
-            visit.visited_at
-          )
-
-          const localDate = new Date(
-            existingDate.getTime() -
-            existingDate.getTimezoneOffset() * 60000
-          )
-            .toISOString()
-            .slice(0, 10)
-
-          return localDate === visitDate
-        }
-      )
-
-      if (duplicated) {
-        setError(
-          'この日はすでに訪問履歴があります。'
-        )
-        return
-      }
-
       const visitedAt = new Date(
         `${visitDate}T12:00:00`
       ).toISOString()
 
-      const {
-        data: insertedVisit,
-        error: visitError,
-      } = await supabase
-        .from('place_visits')
-        .insert({
-          place_id: visitDatePlace.id,
-          visited_at: visitedAt,
-        })
-        .select('id, place_id, visited_at, created_at')
-        .single()
+      const { error: visitError } = await supabase.rpc(
+        'create_place_visit',
+        {
+          p_place_id: visitDatePlace.id,
+          p_visited_at: visitedAt,
+        }
+      )
 
       if (visitError) {
         throw new Error(
           `訪問履歴の保存エラー: ${visitError.message}`
-        )
-      }
-
-      if (!insertedVisit) {
-        throw new Error(
-          '訪問履歴を登録できませんでした。'
-        )
-      }
-
-      /*
-       * 「行きたい」→「行った」の操作なので、
-       * ここでは明示的に visited にする。
-       */
-      const { data: updatedPlace, error: placeError } =
-        await supabase
-          .from('places')
-          .update({
-            status: 'visited',
-            visited_at: visitedAt,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', visitDatePlace.id)
-          .eq('couple_id', visitDatePlace.couple_id)
-          .select('id, status, visited_at')
-          .maybeSingle()
-
-      if (placeError) {
-        throw placeError
-      }
-
-      if (!updatedPlace) {
-        throw new Error(
-          '場所のステータスを更新できませんでした。RLSなどの権限設定を確認してください。'
         )
       }
 
@@ -1123,6 +1044,7 @@ function Home() {
       setVisitDateLoading(false)
     }
   }
+
 
 
   const updateVisitDate = async (
@@ -1163,9 +1085,7 @@ function Home() {
 
       const duplicated = (existingVisits ?? []).some(
         (item) => {
-          const existingDate = new Date(
-            item.visited_at
-          )
+          const existingDate = new Date(item.visited_at)
 
           const localDate = new Date(
             existingDate.getTime() -
@@ -1185,55 +1105,29 @@ function Home() {
         return
       }
 
+      // date → timestamp
       const visitedAt = new Date(
         `${date}T12:00:00`
       ).toISOString()
 
-      const {
-        data: updatedVisit,
-        error: updateError,
-      } = await supabase
-        .from('place_visits')
-        .update({
-          visited_at: visitedAt,
-        })
-        .eq('id', visit.id)
-        .select('id, place_id, visited_at, created_at')
-        .maybeSingle()
-
-      if (updateError) {
-        console.error(
-          'Visit date update error:',
-          updateError
-        )
-
-        setError(
-          `訪問日の更新エラー: ${updateError.message}`
-        )
-
-        return
-      }
-
-      if (!updatedVisit) {
-        setError(
-          '訪問履歴を更新できませんでした。RLSなどの権限設定を確認してください。'
-        )
-
-        return
-      }
-
-      /*
-       * ここでは places.status を変更しない。
-       *
-       * 「行きたい」状態で過去の訪問日を修正した場合も、
-       * 「行きたい」のままにする。
-       *
-       * 「行った」状態の場合も、
-       * 「行った」のままにする。
-       */
-      await updatePlaceLatestVisitDate(
-        visit.place_id
+      // DB側で
+      // place_visits UPDATE
+      // +
+      // places.visited_at UPDATE
+      // をまとめて実行
+      const { error: visitError } = await supabase.rpc(
+        'update_place_visit',
+        {
+          p_visit_id: visit.id,
+          p_visited_at: visitedAt,
+        }
       )
+
+      if (visitError) {
+        throw new Error(
+          `訪問日の更新エラー: ${visitError.message}`
+        )
+      }
 
       if (couple) {
         await loadPlaces(couple.id)
@@ -1246,11 +1140,13 @@ function Home() {
 
       setError(
         error instanceof Error
-          ? `訪問日の更新エラー: ${error.message}`
+          ? error.message
           : '訪問日の更新に失敗しました。'
       )
     }
   }
+
+
 
 
   const deleteVisit = async (
@@ -1267,94 +1163,16 @@ function Home() {
     setError('')
 
     try {
-      /*
-       * 削除前の places.status を取得する。
-       *
-       * 「行きたい」状態なら、
-       * 訪問履歴を削除しても「行きたい」のまま。
-       *
-       * 「行った」状態なら、
-       * 削除後に訪問履歴が残っているか確認する。
-       */
-      const {
-        data: currentPlace,
-        error: currentPlaceError,
-      } = await supabase
-        .from('places')
-        .select('id, status')
-        .eq('id', visit.place_id)
-        .maybeSingle()
-
-      if (currentPlaceError) {
-        console.error(
-          'Current place lookup error:',
-          currentPlaceError
-        )
-
-        setError(
-          `場所情報の取得エラー: ${currentPlaceError.message}`
-        )
-
-        return
-      }
-
-      if (!currentPlace) {
-        setError(
-          '場所情報を取得できませんでした。'
-        )
-
-        return
-      }
-
-      const {
-        data: deletedVisit,
-        error: deleteError,
-      } = await supabase
-        .from('place_visits')
-        .delete()
-        .eq('id', visit.id)
-        .select('id')
-        .maybeSingle()
+      const { error: deleteError } = await supabase.rpc(
+        'delete_place_visit',
+        {
+          p_visit_id: visit.id,
+        }
+      )
 
       if (deleteError) {
-        console.error(
-          'Visit deletion error:',
-          deleteError
-        )
-
-        setError(
+        throw new Error(
           `訪問履歴の削除エラー: ${deleteError.message}`
-        )
-
-        return
-      }
-
-      if (!deletedVisit) {
-        setError(
-          '訪問履歴を削除できませんでした。RLSなどの権限設定を確認してください。'
-        )
-
-        return
-      }
-
-      /*
-       * 「行きたい」の場合は、
-       * 履歴を削除しても status は変更しない。
-       */
-      if (currentPlace.status === 'want') {
-        await updatePlaceLatestVisitDate(
-          visit.place_id
-        )
-      } else {
-        /*
-         * 「行った」の場合は、
-         * 残っている訪問履歴を確認する。
-         *
-         * 残っていれば「行った」のまま。
-         * 0件なら「行きたい」に戻す。
-         */
-        await updatePlaceLatestVisit(
-          visit.place_id
         )
       }
 
@@ -1369,137 +1187,11 @@ function Home() {
 
       setError(
         error instanceof Error
-          ? `訪問履歴の削除エラー: ${error.message}`
+          ? error.message
           : '訪問履歴の削除に失敗しました。'
       )
     }
   }
-
-
-
-
-  const updatePlaceLatestVisit = async (
-    placeId: string
-  ) => {
-    const {
-      data: visits,
-      error,
-    } = await supabase
-      .from('place_visits')
-      .select('id, place_id, visited_at, created_at')
-      .eq('place_id', placeId)
-      .order('visited_at', {
-        ascending: false,
-      })
-
-    if (error) {
-      throw error
-    }
-
-    const latestVisit = visits?.[0]
-
-    if (!latestVisit) {
-      const {
-        data,
-        error: placeError,
-      } = await supabase
-        .from('places')
-        .update({
-          status: 'want',
-          visited_at: null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', placeId)
-        .select('id, status, visited_at')
-        .maybeSingle()
-
-      if (placeError) {
-        throw placeError
-      }
-
-      if (!data) {
-        throw new Error(
-          '場所のステータスを更新できませんでした。RLSなどの権限設定を確認してください。'
-        )
-      }
-
-      return
-    }
-
-    const {
-      data,
-      error: placeError,
-    } = await supabase
-      .from('places')
-      .update({
-        status: 'visited',
-        visited_at: latestVisit.visited_at,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', placeId)
-      .select('id, status, visited_at')
-      .maybeSingle()
-
-    if (placeError) {
-      throw placeError
-    }
-
-    if (!data) {
-      throw new Error(
-        '場所のステータスを更新できませんでした。RLSなどの権限設定を確認してください。'
-      )
-    }
-  }
-
-  const updatePlaceLatestVisitDate = async (
-    placeId: string
-  ) => {
-    const {
-      data: visits,
-      error,
-    } = await supabase
-      .from('place_visits')
-      .select('id, place_id, visited_at, created_at')
-      .eq('place_id', placeId)
-      .order('visited_at', {
-        ascending: false,
-      })
-
-    if (error) {
-      throw error
-    }
-
-    const latestVisit = visits?.[0]
-
-    /*
-     * 訪問履歴の日付情報だけを更新する。
-     *
-     * status は絶対に変更しない。
-     */
-    const {
-      data,
-      error: placeError,
-    } = await supabase
-      .from('places')
-      .update({
-        visited_at: latestVisit?.visited_at ?? null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', placeId)
-      .select('id, status, visited_at')
-      .maybeSingle()
-
-    if (placeError) {
-      throw placeError
-    }
-
-    if (!data) {
-      throw new Error(
-        '場所の訪問日を更新できませんでした。RLSなどの権限設定を確認してください。'
-      )
-    }
-  }
-
 
   const filteredPlaces = places.filter(
     (place) =>
