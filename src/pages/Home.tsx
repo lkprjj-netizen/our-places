@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import CategorySettings from '../components/categories/CategorySetting'
+import SpaceSettings from '../components/couple/SpaceSettings'
+
 
 
 import type {
@@ -11,7 +12,6 @@ import type {
 } from '../types'
 
 import PlaceList from '../components/places/PlaceList'
-
 
 function Home() {
   const [loading, setLoading] = useState(false)
@@ -61,6 +61,9 @@ function Home() {
   const [dragPointerId, setDragPointerId] = useState<number | null>(null)
   // ドラッグ中の最新カテゴリ順を保持
   const categoriesRef = useRef<Category[]>([])
+
+  const [showCategorySettings, setShowCategorySettings] = useState(false)
+
 
   // --------------------------------------------------
   // 初期読み込み
@@ -1055,109 +1058,52 @@ function Home() {
             </section>
 
             {showSpaceSettings && (
-              <section className="mt-4 rounded-3xl bg-white p-6 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-medium text-stone-800">
-                    共有スペース設定
-                  </h3>
+              <SpaceSettings
+                couple={couple}
+                spaceName={spaceName}
+                setSpaceName={setSpaceName}
+                spaceNameLoading={spaceNameLoading}
+                isPartnerConnected={isPartnerConnected}
 
-                  <button
-                    type="button"
-                    onClick={() => setShowSpaceSettings(false)}
-                    className="mt-1 text-sm text-stone-400 underline hover:text-stone-600"
-                  >
-                    閉じる
-                  </button>
-                </div>
+                onClose={() => setShowSpaceSettings(false)}
 
-                <label className="mt-5 block text-sm text-stone-500">
-                  スペース名
-                </label>
+                onSave={async () => {
+                  if (!couple || !spaceName.trim()) {
+                    return
+                  }
 
-                <input
-                  type="text"
-                  value={spaceName}
-                  onChange={(e) => setSpaceName(e.target.value)}
-                  className="mt-2 w-full rounded-2xl border border-stone-200 px-4 py-3 text-sm outline-none focus:border-stone-400"
-                />
+                  setSpaceNameLoading(true)
+                  setError('')
 
-                <button
-                  type="button"
-                  disabled={spaceNameLoading}
-                  onClick={async () => {
-                    if (!couple || !spaceName.trim()) {
-                      return
-                    }
+                  const { error: updateError } = await supabase
+                    .from('couples')
+                    .update({
+                      name: spaceName.trim(),
+                    })
+                    .eq('id', couple.id)
 
-                    setSpaceNameLoading(true)
-                    setError('')
+                  if (updateError) {
+                    console.error(
+                      'Space name update error:',
+                      updateError
+                    )
 
-                    const { error: updateError } = await supabase
-                      .from('couples')
-                      .update({
-                        name: spaceName.trim(),
-                      })
-                      .eq('id', couple.id)
+                    setError(
+                      `スペース名変更エラー: ${updateError.message}`
+                    )
+                  } else {
+                    setCouple({
+                      ...couple,
+                      name: spaceName.trim(),
+                    })
 
-                    if (updateError) {
-                      console.error('Space name update error:', updateError)
-                      setError(`スペース名変更エラー: ${updateError.message}`)
-                    } else {
-                      setCouple({
-                        ...couple,
-                        name: spaceName.trim(),
-                      })
+                    setShowSpaceSettings(false)
+                  }
 
-                      setShowSpaceSettings(false)
-                    }
-
-                    setSpaceNameLoading(false)
-                  }}
-                  className="mt-4 rounded-2xl bg-stone-800 px-5 py-3 text-sm font-medium text-white disabled:opacity-50"
-                >
-                  {spaceNameLoading ? '保存中...' : '保存'}
-                </button>
-
-                {!isPartnerConnected && (
-                  <div className="mt-6 border-t border-stone-100 pt-6">
-                    <p className="text-sm text-stone-500">
-                      招待コード
-                    </p>
-
-                    <p className="mt-2 font-mono text-lg tracking-widest text-stone-700">
-                      {couple?.invite_code}
-                    </p>
-
-                    <p className="mt-2 text-xs text-stone-400">
-                      このコードを相手に共有してください。
-                    </p>
-                  </div>
-                )}
-
-                <CategorySettings
-                  categories={categories}
-                  editingCategoryId={editingCategoryId}
-                  setEditingCategoryId={setEditingCategoryId}
-                  editingCategoryName={editingCategoryName}
-                  setEditingCategoryName={setEditingCategoryName}
-                  newCategoryName={newCategoryName}
-                  setNewCategoryName={setNewCategoryName}
-                  categoryLoading={categoryLoading}
-                  draggingCategoryId={draggingCategoryId}
-                  onCreateCategory={createCategory}
-                  onUpdateCategory={updateCategory}
-                  onDeleteCategory={deleteCategory}
-                  onDragStart={(categoryId, pointerId) => {
-                    categoriesRef.current = [...categories]
-
-                    setDraggingCategoryId(categoryId)
-                    setDragPointerId(pointerId)
-                  }}
-                />
-
-              </section>
+                  setSpaceNameLoading(false)
+                }}
+              />
             )}
-
 
             {/* 場所追加 */}
             <div className="mt-6 flex justify-end">
@@ -1227,7 +1173,7 @@ function Home() {
                   onClick={() => setCategoryFilter('すべて')}
                   className={`shrink-0 rounded-full px-4 py-2 text-sm ${categoryFilter === 'すべて'
                     ? 'bg-stone-800 text-white'
-                    : 'bg-white text-stone-500 border border-stone-200'
+                    : 'border border-stone-200 bg-white text-stone-500'
                     }`}
                 >
                   すべて
@@ -1240,12 +1186,22 @@ function Home() {
                     onClick={() => setCategoryFilter(category.id)}
                     className={`shrink-0 rounded-full px-4 py-2 text-sm ${categoryFilter === category.id
                       ? 'bg-stone-800 text-white'
-                      : 'bg-white text-stone-500 border border-stone-200'
+                      : 'border border-stone-200 bg-white text-stone-500'
                       }`}
                   >
                     {category.name}
                   </button>
                 ))}
+
+                {/* カテゴリ管理 */}
+                <button
+                  type="button"
+                  onClick={() => setShowCategorySettings(true)}
+                  className="shrink-0 rounded-full px-4 py-2 text-sm border border-stone-200 bg-white text-stone-500"
+                  aria-label="カテゴリを管理"
+                >
+                  設定
+                </button>
               </div>
 
               <PlaceList
@@ -1353,6 +1309,154 @@ function Home() {
           </div>
         </div>
       )}
+
+      {showCategorySettings && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
+          onClick={() => setShowCategorySettings(false)}
+        >
+          <div
+            className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-3xl bg-white p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-medium text-stone-800">
+                カテゴリを管理
+              </h2>
+
+              <button
+                type="button"
+                onClick={() => setShowCategorySettings(false)}
+                className="text-sm text-stone-400"
+              >
+                閉じる
+              </button>
+            </div>
+
+            {/* カテゴリ追加 */}
+            <div className="mt-5 flex gap-2">
+              <input
+                type="text"
+                value={newCategoryName}
+                onChange={(e) => setNewCategoryName(e.target.value)}
+                maxLength={20}
+                placeholder="新しいカテゴリ"
+                className="min-w-0 flex-1 rounded-2xl border border-stone-200 px-4 py-3 text-sm outline-none focus:border-stone-400"
+              />
+
+              <button
+                type="button"
+                onClick={createCategory}
+                disabled={categoryLoading}
+                className="shrink-0 rounded-2xl bg-stone-800 px-4 py-3 text-sm text-white disabled:opacity-50"
+              >
+                追加
+              </button>
+            </div>
+
+            {/* カテゴリ一覧 */}
+            <div className="mt-5 space-y-2">
+              {categories.map((category) => (
+                <div
+                  key={category.id}
+                  data-category-id={category.id}
+                  className={`rounded-2xl border border-stone-100 bg-stone-50 p-3 ${draggingCategoryId === category.id
+                    ? 'opacity-50'
+                    : ''
+                    }`}
+                >
+                  {editingCategoryId === category.id ? (
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={editingCategoryName}
+                        onChange={(e) =>
+                          setEditingCategoryName(e.target.value)
+                        }
+                        maxLength={20}
+                        className="min-w-0 flex-1 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm outline-none focus:border-stone-400"
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() => updateCategory(category.id)}
+                        disabled={categoryLoading}
+                        className="shrink-0 rounded-xl bg-stone-800 px-3 py-2 text-xs text-white disabled:opacity-50"
+                      >
+                        保存
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingCategoryId(null)
+                          setEditingCategoryName('')
+                        }}
+                        className="shrink-0 rounded-xl border border-stone-200 bg-white px-3 py-2 text-xs text-stone-500"
+                      >
+                        戻す
+                      </button>
+                    </div>
+                  ) : (
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <span
+                            className="shrink-0 cursor-grab select-none touch-none text-stone-300 active:cursor-grabbing"
+                            aria-label="カテゴリを並び替え"
+                            onPointerDown={(e) => {
+                              if (editingCategoryId === category.id) {
+                                return
+                              }
+
+                              e.preventDefault()
+
+                              setDraggingCategoryId(category.id)
+                              setDragPointerId(e.pointerId)
+
+                              categoriesRef.current = [...categories]
+                            }}
+                          >
+                            ⋮⋮
+                          </span>
+
+                          <span className="min-w-0 truncate text-sm text-stone-700">
+                            {category.name}
+                          </span>
+                        </div>
+
+                        <div className="flex shrink-0 gap-2">
+
+                        <button
+                          type="button"
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={() => {
+                            setEditingCategoryId(category.id)
+                            setEditingCategoryName(category.name)
+                          }}
+                          className="text-xs text-stone-400 underline"
+                        >
+                          編集
+                        </button>
+
+                        <button
+                          type="button"
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={() => deleteCategory(category)}
+                          disabled={categoryLoading}
+                          className="text-xs text-red-400 underline disabled:opacity-50"
+                        >
+                          削除
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
 
     </main>
   )
