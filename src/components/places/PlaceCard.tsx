@@ -198,38 +198,38 @@ function PlaceCard({
               </p>
             </div>
 
-            {userId === place.added_by && (
-              <div
-                data-place-menu
-                className="relative shrink-0"
+            <div
+              data-place-menu
+              className="relative shrink-0"
+            >
+              <button
+                type="button"
+                onClick={() =>
+                  setOpenPlaceMenuId(
+                    openPlaceMenuId === place.id
+                      ? null
+                      : place.id
+                  )
+                }
+                className="rounded-full p-2 text-lg leading-none text-stone-400 hover:bg-stone-100 hover:text-stone-600"
+                aria-label="場所の操作"
               >
-                <button
-                  type="button"
-                  onClick={() =>
-                    setOpenPlaceMenuId(
-                      openPlaceMenuId === place.id
-                        ? null
-                        : place.id
-                    )
-                  }
-                  className="rounded-full p-2 text-lg leading-none text-stone-400 hover:bg-stone-100 hover:text-stone-600"
-                  aria-label="場所の操作"
-                >
-                  ⋯
-                </button>
+                ⋯
+              </button>
 
-                {openPlaceMenuId === place.id && (
-                  <div className="absolute right-0 top-11 z-20 w-28 rounded-2xl border border-stone-100 bg-white p-1 shadow-lg">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        startEditing(place)
-                      }
-                      className="w-full rounded-xl px-3 py-2 text-left text-sm text-stone-600 hover:bg-stone-50"
-                    >
-                      編集
-                    </button>
+              {openPlaceMenuId === place.id && (
+                <div className="absolute right-0 top-11 z-20 w-28 rounded-2xl border border-stone-100 bg-white p-1 shadow-lg">
+                  {/* 編集はカップルメンバーなら可能 */}
+                  <button
+                    type="button"
+                    onClick={() => startEditing(place)}
+                    className="w-full rounded-xl px-3 py-2 text-left text-sm text-stone-600 hover:bg-stone-50"
+                  >
+                    編集
+                  </button>
 
+                  {/* 削除は登録者本人のみ */}
+                  {userId === place.added_by && (
                     <button
                       type="button"
                       onClick={() => {
@@ -240,10 +240,11 @@ function PlaceCard({
                     >
                       削除
                     </button>
-                  </div>
-                )}
-              </div>
-            )}
+                  )}
+                </div>
+              )}
+            </div>
+
           </div>
 
           {place.memo && (

@@ -840,7 +840,6 @@ function Home() {
         updated_at: new Date().toISOString(),
       })
       .eq('id', place.id)
-      .eq('added_by', userId)
 
     if (updateError) {
       console.error('Place update error:', updateError)
