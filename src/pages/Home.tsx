@@ -997,6 +997,15 @@ function Home() {
     setShowVisitDateModal(true)
   }
 
+  const getJapanDate = (value: string) => {
+    return new Intl.DateTimeFormat('sv-SE', {
+      timeZone: 'Asia/Tokyo',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date(value))
+  }
+
   const saveVisitDate = async () => {
     if (!visitDatePlace || !visitDate) {
       return
@@ -1006,8 +1015,32 @@ function Home() {
     setError('')
 
     try {
+      // フロント側で事前チェック
+      const {
+        data: existingVisits,
+        error: existingError,
+      } = await supabase
+        .from('place_visits')
+        .select('id, visited_at')
+        .eq('place_id', visitDatePlace.id)
+
+      if (existingError) {
+        throw new Error(
+          `訪問履歴の確認エラー: ${existingError.message}`
+        )
+      }
+
+      const duplicated = (existingVisits ?? []).some(
+        (item) => getJapanDate(item.visited_at) === visitDate
+      )
+
+      if (duplicated) {
+        setError('この日はすでに訪問履歴があります。')
+        return
+      }
+
       const visitedAt = new Date(
-        `${visitDate}T12:00:00`
+        `${visitDate}T12:00:00+09:00`
       ).toISOString()
 
       const { error: visitError } = await supabase.rpc(
@@ -1019,6 +1052,16 @@ function Home() {
       )
 
       if (visitError) {
+        // DB側のUNIQUE制約/RPCによる重複
+        if (
+          visitError.message.includes(
+            'この日はすでに訪問履歴があります'
+          )
+        ) {
+          setError('この日はすでに訪問履歴があります。')
+          return
+        }
+
         throw new Error(
           `訪問履歴の保存エラー: ${visitError.message}`
         )
@@ -1045,8 +1088,6 @@ function Home() {
     }
   }
 
-
-
   const updateVisitDate = async (
     visit: PlaceVisit,
     date: string
@@ -1059,8 +1100,10 @@ function Home() {
     setError('')
 
     try {
-      // 同じ場所に同じ日付の訪問履歴が
-      // すでに存在しないかチェック
+      // --------------------------------------------------
+      // フロント側で事前チェック
+      // --------------------------------------------------
+
       const {
         data: existingVisits,
         error: existingError,
@@ -1084,37 +1127,29 @@ function Home() {
       }
 
       const duplicated = (existingVisits ?? []).some(
-        (item) => {
-          const existingDate = new Date(item.visited_at)
-
-          const localDate = new Date(
-            existingDate.getTime() -
-            existingDate.getTimezoneOffset() * 60000
-          )
-            .toISOString()
-            .slice(0, 10)
-
-          return localDate === date
-        }
+        (item) => getJapanDate(item.visited_at) === date
       )
 
       if (duplicated) {
         setError(
           'この日はすでに訪問履歴があります。'
         )
+
         return
       }
 
-      // date → timestamp
+      // --------------------------------------------------
+      // 日本時間の日付 → timestamp
+      // --------------------------------------------------
+
       const visitedAt = new Date(
-        `${date}T12:00:00`
+        `${date}T12:00:00+09:00`
       ).toISOString()
 
-      // DB側で
-      // place_visits UPDATE
-      // +
-      // places.visited_at UPDATE
-      // をまとめて実行
+      // --------------------------------------------------
+      // DB側で原子的に更新
+      // --------------------------------------------------
+
       const { error: visitError } = await supabase.rpc(
         'update_place_visit',
         {
@@ -1124,10 +1159,25 @@ function Home() {
       )
 
       if (visitError) {
-        throw new Error(
-          `訪問日の更新エラー: ${visitError.message}`
+        console.error(
+          'Update visit RPC error:',
+          visitError
         )
+
+        setError(
+          visitError.message.includes(
+            'place_visits_place_id_visited_date_key'
+          )
+            ? 'この日はすでに訪問履歴があります。'
+            : `訪問日の更新エラー: ${visitError.message}`
+        )
+
+        return
       }
+
+      // --------------------------------------------------
+      // 最新データを再取得
+      // --------------------------------------------------
 
       if (couple) {
         await loadPlaces(couple.id)
@@ -1145,9 +1195,6 @@ function Home() {
       )
     }
   }
-
-
-
 
   const deleteVisit = async (
     visit: PlaceVisit
