@@ -52,6 +52,9 @@ type PlaceListProps = {
   setEditMemo: (value: string) => void
 
   placeVisits: PlaceVisit[]
+
+  openPlaceMenuId: string | null
+  setOpenPlaceMenuId: (id: string | null) => void
 }
 
 
@@ -88,6 +91,9 @@ function PlaceList({
   setEditMemo,
 
   placeVisits,
+
+  openPlaceMenuId,
+  setOpenPlaceMenuId,
 }: PlaceListProps) {
   const groupedPlaces = categories
     .map((category) => ({
@@ -154,6 +160,8 @@ function PlaceList({
                       setEditingPlaceCategoryId={setEditingPlaceCategoryId}
                       editMemo={editMemo}
                       setEditMemo={setEditMemo}
+                      openPlaceMenuId={openPlaceMenuId}
+                      setOpenPlaceMenuId={setOpenPlaceMenuId}
                     />
 
                   )

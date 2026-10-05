@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import PlaceEditForm from './PlaceEditForm'
 import ReviewSection from './ReviewSection'
 
@@ -49,6 +49,10 @@ type PlaceCardProps = {
 
   editMemo: string
   setEditMemo: (value: string) => void
+
+  openPlaceMenuId: string | null
+  setOpenPlaceMenuId: (id: string | null) => void
+
 }
 
 function PlaceCard({
@@ -82,10 +86,10 @@ function PlaceCard({
 
   editMemo,
   setEditMemo,
-}: PlaceCardProps) {
-  const [openPlaceMenuId, setOpenPlaceMenuId] =
-    useState<string | null>(null)
 
+  openPlaceMenuId,
+  setOpenPlaceMenuId,
+}: PlaceCardProps) {
   const [editingVisitId, setEditingVisitId] =
     useState<string | null>(null)
 
@@ -105,6 +109,33 @@ function PlaceCard({
     setOpenPlaceMenuId(null)
   }
 
+  useEffect(() => {
+    if (!openPlaceMenuId) {
+      return
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as HTMLElement
+
+      if (target.closest('[data-place-menu]')) {
+        return
+      }
+
+      setOpenPlaceMenuId(null)
+    }
+
+    document.addEventListener(
+      'pointerdown',
+      handlePointerDown
+    )
+
+    return () => {
+      document.removeEventListener(
+        'pointerdown',
+        handlePointerDown
+      )
+    }
+  }, [openPlaceMenuId])
 
 
   const formatVisitDate = (date: string) => {

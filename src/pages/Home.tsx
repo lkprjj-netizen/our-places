@@ -73,6 +73,8 @@ function Home() {
   const [visitDate, setVisitDate] = useState('')
   const [visitDateLoading, setVisitDateLoading] = useState(false)
 
+  const [openPlaceMenuId, setOpenPlaceMenuId] =
+    useState<string | null>(null)
 
   // --------------------------------------------------
   // 初期読み込み
@@ -1548,8 +1550,9 @@ function Home() {
                 editMemo={editMemo}
                 setEditMemo={setEditMemo}
                 placeVisits={placeVisits}
+                openPlaceMenuId={openPlaceMenuId}
+                setOpenPlaceMenuId={setOpenPlaceMenuId}
               />
-
 
             </section>
           </>
