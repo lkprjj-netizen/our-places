@@ -415,17 +415,7 @@ function PlaceCard({
                               }
                               className="text-xs text-stone-400 underline"
                             >
-                              編集
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() =>
-                                onDeleteVisit(visit)
-                              }
-                              className="text-xs text-red-400 underline"
-                            >
-                              削除
+                              選択
                             </button>
                           </div>
                         )}
@@ -436,7 +426,6 @@ function PlaceCard({
               </div>
             </div>
           )}
-
 
           {place.status === 'visited' && (
             <ReviewSection
