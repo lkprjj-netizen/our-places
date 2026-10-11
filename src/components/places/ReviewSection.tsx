@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import type {
   Place,
@@ -14,6 +14,12 @@ type ReviewSectionProps = {
     rating: number,
     review: string
   ) => Promise<void>
+
+  isWritingReview: boolean
+  setIsWritingReview: (
+    value: boolean | ((prev: boolean) => boolean)
+  ) => void
+  onOpenReview: () => void
 }
 
 function ReviewSection({
@@ -21,10 +27,14 @@ function ReviewSection({
   reviews,
   userId,
   onSaveReview,
+  isWritingReview,
+  setIsWritingReview,
+  onOpenReview,
 }: ReviewSectionProps) {
-  const [isReviewing, setIsReviewing] = useState(false)
   const [rating, setRating] = useState(0)
   const [review, setReview] = useState('')
+  const reviewSectionRef = useRef<HTMLDivElement>(null)
+  const reviewToggleButtonRef = useRef<HTMLButtonElement>(null)
 
   const placeReviews = reviews.filter(
     (item) => item.place_id === place.id
@@ -36,26 +46,61 @@ function ReviewSection({
       item.user_id === userId
   )
 
-  const handleOpen = () => {
-    setIsReviewing(true)
+  useEffect(() => {
+    if (!isWritingReview) {
+      return
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target
+
+      if (!(target instanceof Node)) {
+        return
+      }
+
+      // 評価入力欄の内部なら閉じない
+      if (reviewSectionRef.current?.contains(target)) {
+        return
+      }
+
+      // 開閉ボタンなら閉じない
+      // ボタン自身の onClick で開閉する
+      if (reviewToggleButtonRef.current?.contains(target)) {
+        return
+      }
+
+      setIsWritingReview(false)
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown)
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown)
+    }
+  }, [isWritingReview, setIsWritingReview])
+
+  const handleToggle = () => {
+    if (isWritingReview) {
+      setIsWritingReview(false)
+      return
+    }
+
     setRating(myReview?.rating ?? 0)
     setReview(myReview?.review ?? '')
+    onOpenReview()
+    setIsWritingReview(true)
   }
 
   const handleCancel = () => {
-    setIsReviewing(false)
+    setIsWritingReview(false)
     setRating(0)
     setReview('')
   }
 
   const handleSave = async () => {
-    await onSaveReview(
-      place,
-      rating,
-      review
-    )
+    await onSaveReview(place, rating, review)
 
-    setIsReviewing(false)
+    setIsWritingReview(false)
     setRating(0)
     setReview('')
   }
@@ -97,17 +142,23 @@ function ReviewSection({
       ))}
 
       <button
+        ref={reviewToggleButtonRef}
         type="button"
-        onClick={handleOpen}
+        onClick={handleToggle}
         className="mt-5 text-sm text-stone-500 underline"
       >
-        {myReview
-          ? '評価・感想を編集'
-          : '評価・感想を残す'}
+        {isWritingReview
+          ? '評価画面を閉じる'
+          : myReview
+            ? '評価・感想を編集'
+            : '評価・感想を残す'}
       </button>
 
-      {isReviewing && (
-        <div className="mt-5 border-t border-stone-100 pt-5">
+      {isWritingReview && (
+        <div
+          ref={reviewSectionRef}
+          className="mt-5 border-t border-stone-100 pt-5"
+        >
           <p className="text-sm font-medium text-stone-700">
             評価
           </p>
@@ -118,6 +169,7 @@ function ReviewSection({
                 key={star}
                 type="button"
                 onClick={() => setRating(star)}
+                aria-label={`${star}点`}
                 className={`text-2xl ${star <= rating
                     ? 'text-amber-400'
                     : 'text-stone-200'
@@ -130,9 +182,7 @@ function ReviewSection({
 
           <textarea
             value={review}
-            onChange={(e) =>
-              setReview(e.target.value)
-            }
+            onChange={(e) => setReview(e.target.value)}
             placeholder="感想を残す"
             rows={3}
             className="mt-3 w-full resize-none rounded-2xl border border-stone-200 px-4 py-3 text-sm outline-none focus:border-stone-400"

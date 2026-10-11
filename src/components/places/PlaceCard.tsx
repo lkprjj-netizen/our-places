@@ -100,10 +100,14 @@ function PlaceCard({
   const [editingVisitDate, setEditingVisitDate] =
     useState('')
 
+  const [isWritingReview, setIsWritingReview] =
+    useState(false)
+
   const startEditing = (place: Place) => {
     setIsEditingVisits(false)
     setEditingVisitId(null)
     setEditingVisitDate('')
+    setIsWritingReview(false)
 
     setEditingPlaceId(place.id)
     setEditName(place.name)
@@ -367,6 +371,7 @@ function PlaceCard({
                     type="button"
                     onClick={() => {
                       setEditingPlaceId(null)
+                      setIsWritingReview(false)
                       setIsEditingVisits(true)
                       setEditingVisitId(null)
                       setEditingVisitDate('')
@@ -385,7 +390,7 @@ function PlaceCard({
                     }}
                     className="text-xs text-stone-400 underline"
                   >
-                    戻す
+                    閉じる
                   </button>
                 )}
               </div>
@@ -475,6 +480,14 @@ function PlaceCard({
               reviews={reviews}
               userId={userId}
               onSaveReview={onSaveReview}
+              isWritingReview={isWritingReview}
+              setIsWritingReview={setIsWritingReview}
+              onOpenReview={() => {
+                setEditingPlaceId(null)
+                setIsEditingVisits(false)
+                setEditingVisitId(null)
+                setEditingVisitDate('')
+              }}
             />
           )}
         </>
