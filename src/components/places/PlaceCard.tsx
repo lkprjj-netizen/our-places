@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import PlaceEditForm from './PlaceEditForm'
 import ReviewSection from './ReviewSection'
 
@@ -101,6 +101,10 @@ function PlaceCard({
     useState('')
 
   const startEditing = (place: Place) => {
+    setIsEditingVisits(false)
+    setEditingVisitId(null)
+    setEditingVisitDate('')
+
     setEditingPlaceId(place.id)
     setEditName(place.name)
     setEditGoogleMapsUrl(place.google_maps_url)
@@ -108,6 +112,8 @@ function PlaceCard({
     setEditMemo(place.memo ?? '')
     setOpenPlaceMenuId(null)
   }
+
+  const visitSectionRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!openPlaceMenuId) {
@@ -137,6 +143,38 @@ function PlaceCard({
     }
   }, [openPlaceMenuId])
 
+  useEffect(() => {
+    if (!isEditingVisits) {
+      return
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target
+
+      if (
+        target instanceof Node &&
+        visitSectionRef.current?.contains(target)
+      ) {
+        return
+      }
+
+      setIsEditingVisits(false)
+      setEditingVisitId(null)
+      setEditingVisitDate('')
+    }
+
+    document.addEventListener(
+      'pointerdown',
+      handlePointerDown
+    )
+
+    return () => {
+      document.removeEventListener(
+        'pointerdown',
+        handlePointerDown
+      )
+    }
+  }, [isEditingVisits])
 
   const formatVisitDate = (date: string) => {
     return new Date(date).toLocaleDateString(
@@ -313,7 +351,10 @@ function PlaceCard({
 
           {/* 訪問履歴 */}
           {placeVisits.length > 0 && (
-            <div className="mt-5 border-t border-stone-100 pt-4">
+            <div
+              ref={visitSectionRef}
+              className="mt-5 border-t border-stone-100 pt-4"
+            >
 
               {/* 見出し */}
               <div className="mb-3 flex items-center justify-between">
@@ -325,6 +366,7 @@ function PlaceCard({
                   <button
                     type="button"
                     onClick={() => {
+                      setEditingPlaceId(null)
                       setIsEditingVisits(true)
                       setEditingVisitId(null)
                       setEditingVisitDate('')
