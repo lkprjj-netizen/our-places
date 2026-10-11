@@ -105,7 +105,10 @@ function CategorySettings({
                     onClick={() =>
                       onUpdateCategory(category.id)
                     }
-                    disabled={categoryLoading}
+                    disabled={
+                      categoryLoading ||
+                      !editingCategoryName.trim()
+                    }
                     className="shrink-0 rounded-xl bg-stone-800 px-3 py-2 text-sm text-white disabled:opacity-50"
                   >
                     {categoryLoading ? '保存中...' : '保存'}
@@ -205,7 +208,8 @@ function CategorySettings({
             type="button"
             disabled={
               categoryLoading ||
-              categories.length >= 20
+              categories.length >= 20 ||
+              !newCategoryName.trim()
             }
             onClick={onCreateCategory}
             className="shrink-0 rounded-2xl bg-stone-800 px-4 py-3 text-sm font-medium text-white disabled:opacity-50"
