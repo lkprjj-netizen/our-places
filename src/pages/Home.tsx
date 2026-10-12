@@ -1302,13 +1302,12 @@ function Home() {
     )
     : null
 
-  const recentVisitReview = recentVisit
-    ? reviews.find(
+  const recentVisitReviews = recentVisit
+    ? reviews.filter(
       (review) =>
-        review.place_id === recentVisit.place_id &&
-        review.user_id === userId
+        review.place_id === recentVisit.place_id
     )
-    : null
+    : []
 
   const filteredPlaces = places.filter(
     (place) =>
@@ -1503,7 +1502,7 @@ function Home() {
             )}
 
             {/* ダッシュボード */}
-            <section className="mt-5 rounded-3xl bg-white p-4 shadow-sm">
+            <section className="mt-5 rounded-3xl bg-[#FFFCFA] p-4 shadow-sm">
               {/* ヘッダー */}
               <button
                 type="button"
@@ -1516,7 +1515,7 @@ function Home() {
                     OUR MOMENTS
                   </p>
 
-                  <h2 className="mt-1 text-lg font-medium text-stone-800">
+                  <h2 className="mt-1 text-lg font-medium text-[#574A43]">
                     ふたりの記録
                   </h2>
                 </div>
@@ -1535,7 +1534,7 @@ function Home() {
                 <button
                   type="button"
                   onClick={() => setPlaceTab('want')}
-                  className="rounded-2xl bg-[#F5F1EB] p-4 text-left transition hover:bg-[#EEE7DD] active:scale-[0.98]"
+                  className="rounded-2xl bg-[#F4ECE5] p-4 text-left transition hover:bg-[#F2E8E8] active:scale-[0.98]"
                 >
                   <div className="flex items-center gap-2 text-stone-400">
                     <span aria-hidden="true">⌖</span>
@@ -1555,7 +1554,7 @@ function Home() {
                 <button
                   type="button"
                   onClick={() => setPlaceTab('visited')}
-                  className="rounded-2xl bg-[#F5F1EB] p-4 text-left transition hover:bg-[#EEE7DD] active:scale-[0.98]"
+                  className="rounded-2xl bg-[#F5F1EB] p-4 text-left transition hover:bg-[#EDE0D7] active:scale-[0.98]"
                 >
                   <div className="flex items-center gap-2 text-stone-400">
                     <span aria-hidden="true">♡</span>
@@ -1600,7 +1599,7 @@ function Home() {
                         setScrollToPlaceId(recentVisitPlace.id)
                         setPlaceTab('visited')
                       }}
-                      className="mt-3 w-full rounded-2xl bg-[#FAF9F6] p-4 text-left transition hover:bg-[#F3EFE8] active:scale-[0.99]"
+                      className="mt-3 w-full rounded-2xl bg-[#F8F1ED] p-4 text-left transition hover:bg-[#F3EFE8] active:scale-[0.99]"
                     >
                       <p className="text-base font-medium text-stone-800">
                         {recentVisitPlace.name}
@@ -1615,20 +1614,33 @@ function Home() {
                         }).format(new Date(recentVisit.visited_at))}
                       </p>
 
-                      {recentVisitReview && (
-                        <div className="mt-3">
-                          <p className="text-sm tracking-wider text-amber-500">
-                            {'★'.repeat(recentVisitReview.rating)}
-                            {'☆'.repeat(
-                              Math.max(0, 5 - recentVisitReview.rating)
-                            )}
-                          </p>
+                      {recentVisitReviews.length > 0 && (
+                        <div className="mt-3 space-y-3">
+                          {recentVisitReviews.map((review) => (
+                            <div
+                              key={review.id}
+                              className="rounded-xl bg-[#F2E8E4] p-3"
+                            >
+                              <p className="text-xs font-medium text-[#8C7068]">
+                                {review.user_id === userId
+                                  ? 'あなたの評価'
+                                  : 'パートナーの評価'}
+                              </p>
 
-                          {recentVisitReview.review && (
-                            <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-stone-600">
-                              {recentVisitReview.review}
-                            </p>
-                          )}
+                              <p className="mt-1 text-sm tracking-wider text-[#B58E86]">
+                                {'★'.repeat(review.rating)}
+                                {'☆'.repeat(
+                                  Math.max(0, 5 - review.rating)
+                                )}
+                              </p>
+
+                              {review.review && (
+                                <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-[#574A43]">
+                                  {review.review}
+                                </p>
+                              )}
+                            </div>
+                          ))}
                         </div>
                       )}
 
