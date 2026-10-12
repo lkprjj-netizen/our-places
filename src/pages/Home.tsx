@@ -76,6 +76,10 @@ function Home() {
   const [openPlaceMenuId, setOpenPlaceMenuId] =
     useState<string | null>(null)
 
+  const [showDashboard, setShowDashboard] = useState(false)
+  const [scrollToPlaceId, setScrollToPlaceId] =
+    useState<string | null>(null)
+
   // --------------------------------------------------
   // 初期読み込み
   // --------------------------------------------------
@@ -301,6 +305,34 @@ function Home() {
     dragPointerId,
     couple,
   ])
+
+  useEffect(() => {
+    if (!scrollToPlaceId || placeTab !== 'visited') {
+      return
+    }
+
+    // タブ切り替え後にDOMが更新されてからスクロール
+    const frameId = requestAnimationFrame(() => {
+      const target = document.getElementById(
+        `place-${scrollToPlaceId}`
+      )
+
+      if (!target) {
+        return
+      }
+
+      target.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      })
+
+      setScrollToPlaceId(null)
+    })
+
+    return () => {
+      cancelAnimationFrame(frameId)
+    }
+  }, [scrollToPlaceId, placeTab])
 
 
   // --------------------------------------------------
@@ -1241,6 +1273,43 @@ function Home() {
     }
   }
 
+  // --------------------------------------------------
+  // ダッシュボード
+  // --------------------------------------------------
+
+  const wantCount = places.filter(
+    (place) => place.status === 'want'
+  ).length
+
+  const visitedCount = places.filter(
+    (place) => place.status === 'visited'
+  ).length
+
+  // 訪問日の新しい順に並べた、最近の訪問履歴
+  const recentVisits = [...placeVisits]
+    .sort(
+      (a, b) =>
+        new Date(b.visited_at).getTime() -
+        new Date(a.visited_at).getTime()
+    )
+    .slice(0, 1)
+
+  const recentVisit = recentVisits[0]
+
+  const recentVisitPlace = recentVisit
+    ? places.find(
+      (place) => place.id === recentVisit.place_id
+    )
+    : null
+
+  const recentVisitReview = recentVisit
+    ? reviews.find(
+      (review) =>
+        review.place_id === recentVisit.place_id &&
+        review.user_id === userId
+    )
+    : null
+
   const filteredPlaces = places.filter(
     (place) =>
       place.status === placeTab &&
@@ -1354,16 +1423,22 @@ function Home() {
         {couple && (
           <>
             {/* 共有スペース */}
-            <section className="mt-10 rounded-3xl bg-white p-6 shadow-sm">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-sm text-stone-400">
-                    共有スペース
-                  </p>
+            <section className="mt-8 rounded-2xl bg-white px-4 py-4 shadow-sm">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#F5F1EB]">
+                    <span className="text-lg text-stone-500">♡</span>
+                  </div>
 
-                  <h2 className="mt-2 text-xl font-medium text-stone-800">
-                    {couple.name}
-                  </h2>
+                  <div className="min-w-0">
+                    <p className="text-xs text-stone-400">
+                      OUR SHARED SPACE
+                    </p>
+
+                    <h2 className="mt-1 truncate text-base font-medium text-stone-800">
+                      {couple.name}
+                    </h2>
+                  </div>
                 </div>
 
                 <button
@@ -1372,7 +1447,7 @@ function Home() {
                     setSpaceName(couple.name)
                     setShowSpaceSettings(true)
                   }}
-                  className="mt-1 text-sm text-stone-400 underline hover:text-stone-600"
+                  className="shrink-0 rounded-xl px-3 py-2 text-sm text-stone-500 hover:bg-stone-50"
                 >
                   設定
                 </button>
@@ -1426,6 +1501,155 @@ function Home() {
                 }}
               />
             )}
+
+            {/* ダッシュボード */}
+            <section className="mt-5 rounded-3xl bg-white p-4 shadow-sm">
+              {/* ヘッダー */}
+              <button
+                type="button"
+                onClick={() => setShowDashboard((current) => !current)}
+                aria-expanded={showDashboard}
+                className="flex w-full items-center justify-between gap-3 text-left"
+              >
+                <div>
+                  <p className="text-xs tracking-widest text-stone-400">
+                    OUR MOMENTS
+                  </p>
+
+                  <h2 className="mt-1 text-lg font-medium text-stone-800">
+                    ふたりの記録
+                  </h2>
+                </div>
+
+                <span className="text-stone-400">
+                  {showDashboard ? '−' : '＋'}
+                </span>
+              </button>
+
+              <p className="mt-1 text-xs text-stone-400">
+                ふたりの「行きたい」と「行った」をひと目で。
+              </p>
+
+              {/* 件数カード */}
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setPlaceTab('want')}
+                  className="rounded-2xl bg-[#F5F1EB] p-4 text-left transition hover:bg-[#EEE7DD] active:scale-[0.98]"
+                >
+                  <div className="flex items-center gap-2 text-stone-400">
+                    <span aria-hidden="true">⌖</span>
+                    <span className="text-xs">行きたい</span>
+                  </div>
+
+                  <p className="mt-2 text-3xl font-semibold text-stone-700">
+                    {wantCount}
+                    <span className="ml-1 text-sm font-normal">件</span>
+                  </p>
+
+                  <p className="mt-1 text-xs text-stone-500">
+                    これからの楽しみ
+                  </p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setPlaceTab('visited')}
+                  className="rounded-2xl bg-[#F5F1EB] p-4 text-left transition hover:bg-[#EEE7DD] active:scale-[0.98]"
+                >
+                  <div className="flex items-center gap-2 text-stone-400">
+                    <span aria-hidden="true">♡</span>
+                    <span className="text-xs">行った</span>
+                  </div>
+
+                  <p className="mt-2 text-3xl font-semibold text-stone-700">
+                    {visitedCount}
+                    <span className="ml-1 text-sm font-normal">件</span>
+                  </p>
+
+                  <p className="mt-1 text-xs text-stone-500">
+                    ふたりの思い出
+                  </p>
+                </button>
+              </div>
+
+              {/* 展開時：最近の思い出 */}
+              {showDashboard && (
+                <div className="mt-5 border-t border-stone-100 pt-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-medium text-stone-700">
+                      最近の思い出
+                    </h3>
+
+                    <span className="text-xs tracking-wider text-stone-400">
+                      RECENT
+                    </span>
+                  </div>
+
+                  {recentVisit && recentVisitPlace ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!recentVisitPlace) return
+
+                        // 検索・カテゴリの絞り込みを解除して対象を表示
+                        setSearchQuery('')
+                        setCategoryFilter('すべて')
+
+                        // スクロール先を設定してから「行った」タブへ
+                        setScrollToPlaceId(recentVisitPlace.id)
+                        setPlaceTab('visited')
+                      }}
+                      className="mt-3 w-full rounded-2xl bg-[#FAF9F6] p-4 text-left transition hover:bg-[#F3EFE8] active:scale-[0.99]"
+                    >
+                      <p className="text-base font-medium text-stone-800">
+                        {recentVisitPlace.name}
+                      </p>
+
+                      <p className="mt-1 text-xs text-stone-400">
+                        {new Intl.DateTimeFormat('ja-JP', {
+                          timeZone: 'Asia/Tokyo',
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                        }).format(new Date(recentVisit.visited_at))}
+                      </p>
+
+                      {recentVisitReview && (
+                        <div className="mt-3">
+                          <p className="text-sm tracking-wider text-amber-500">
+                            {'★'.repeat(recentVisitReview.rating)}
+                            {'☆'.repeat(
+                              Math.max(0, 5 - recentVisitReview.rating)
+                            )}
+                          </p>
+
+                          {recentVisitReview.review && (
+                            <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-stone-600">
+                              {recentVisitReview.review}
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      <p className="mt-3 text-right text-xs text-stone-400">
+                        場所の記録を見る →
+                      </p>
+                    </button>
+                  ) : (
+                    <div className="mt-3 rounded-2xl bg-[#FAF9F6] px-4 py-5 text-center">
+                      <p className="text-sm text-stone-600">
+                        ふたりの思い出はこれから。
+                      </p>
+
+                      <p className="mt-1 text-xs text-stone-400">
+                        行きたい場所を訪れて、最初の記録を残そう。
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </section>
 
             {/* 場所追加 */}
             <div className="mt-6 flex justify-end">

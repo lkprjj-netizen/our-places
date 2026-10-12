@@ -137,33 +137,37 @@ function PlaceList({
                     )
 
                   return (
-                    <PlaceCard
+                    <div
                       key={place.id}
-                      place={place}
-                      categories={categories}
-                      userId={userId}
-                      reviews={reviews}
-                      placeVisits={sortedPlaceVisits}
-                      editingPlaceId={editingPlaceId}
-                      setEditingPlaceId={setEditingPlaceId}
-                      onUpdate={onUpdate}
-                      onDelete={onDelete}
-                      onToggleStatus={onToggleStatus}
-                      onSaveReview={onSaveReview}
-                      onUpdateVisitDate={onUpdateVisitDate}
-                      onDeleteVisit={onDeleteVisit}
-                      editName={editName}
-                      setEditName={setEditName}
-                      editGoogleMapsUrl={editGoogleMapsUrl}
-                      setEditGoogleMapsUrl={setEditGoogleMapsUrl}
-                      editingPlaceCategoryId={editingPlaceCategoryId}
-                      setEditingPlaceCategoryId={setEditingPlaceCategoryId}
-                      editMemo={editMemo}
-                      setEditMemo={setEditMemo}
-                      openPlaceMenuId={openPlaceMenuId}
-                      setOpenPlaceMenuId={setOpenPlaceMenuId}
-                    />
-
+                      id={`place-${place.id}`}
+                      className="scroll-mt-24"
+                    >
+                      <PlaceCard
+                        place={place}
+                        categories={categories}
+                        userId={userId}
+                        reviews={reviews}
+                        placeVisits={sortedPlaceVisits}
+                        editingPlaceId={editingPlaceId}
+                        setEditingPlaceId={setEditingPlaceId}
+                        onUpdate={onUpdate}
+                        onDelete={onDelete}
+                        onToggleStatus={onToggleStatus}
+                        onSaveReview={onSaveReview}
+                        onUpdateVisitDate={onUpdateVisitDate}
+                        onDeleteVisit={onDeleteVisit}
+                        editName={editName}
+                        setEditName={setEditName}
+                        editGoogleMapsUrl={editGoogleMapsUrl}
+                        setEditGoogleMapsUrl={setEditGoogleMapsUrl}
+                        editingPlaceCategoryId={editingPlaceCategoryId}
+                        setEditingPlaceCategoryId={setEditingPlaceCategoryId}
+                        editMemo={editMemo}
+                        setEditMemo={setEditMemo}
+                        openPlaceMenuId={openPlaceMenuId}
+                        setOpenPlaceMenuId={setOpenPlaceMenuId}
+                      />
+                    </div>
                   )
                 })}
 
